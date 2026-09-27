@@ -15,7 +15,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/mashkovd/aisle/internal/adapter"
+	"github.com/mashkovd/aisle/internal/adapter/agy"
 	"github.com/mashkovd/aisle/internal/adapter/claude"
+	"github.com/mashkovd/aisle/internal/adapter/codex"
+	"github.com/mashkovd/aisle/internal/adapter/gemini"
 	"github.com/mashkovd/aisle/internal/config"
 	"github.com/mashkovd/aisle/internal/runtime/tmux"
 	"github.com/mashkovd/aisle/internal/service"
@@ -52,6 +55,9 @@ func newApp() (*app, error) {
 	}
 	available := map[string]adapter.Adapter{
 		"claude": claude.New(opts),
+		"codex":  codex.New(opts),
+		"gemini": gemini.New(opts, cfg.ProjectRoots),
+		"agy":    agy.New(opts),
 	}
 	svc := &service.Service{Tmux: tmux.NewClient()}
 	for _, name := range cfg.Adapters {

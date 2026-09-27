@@ -174,7 +174,7 @@ func (a *Adapter) readConversation(path string, hist map[string]histEntry) (sess
 				cwd = l.Cwd
 			}
 			switch l.Type {
-			case "user", "assistant":
+			case "assistant":
 				messages++
 			case "ai-title":
 				aiTitle = l.AITitle
@@ -203,8 +203,8 @@ func (a *Adapter) readConversation(path string, hist map[string]histEntry) (sess
 		}
 		return session.Session{}, false, "" // empty file
 	}
-	if messages == 0 {
-		return session.Session{}, false, "" // snapshots only, nothing to resume
+	if messages == 0 && aiTitle == "" && customTitle == "" {
+		return session.Session{}, false, "" // no reply and no title: only local commands or snapshots
 	}
 
 	h := hist[id]

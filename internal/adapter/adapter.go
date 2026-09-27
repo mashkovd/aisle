@@ -47,9 +47,11 @@ type Options struct {
 	SummaryLen    int
 }
 
+// Ignored reports prompts that make a poor summary: configured trivial
+// replies, slash commands and shell escapes.
 func (o Options) Ignored(prompt string) bool {
 	p := strings.ToLower(strings.TrimSpace(prompt))
-	return p == "" || o.IgnorePrompts[p] || strings.HasPrefix(p, "!")
+	return p == "" || o.IgnorePrompts[p] || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "!")
 }
 
 // DetectBinary resolves name on PATH and, if asked, runs `name --version`.

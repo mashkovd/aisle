@@ -1,0 +1,2 @@
+{"timestamp":"2026-09-20T19:10:00.000Z","type":"session_meta","payload":{"id":"aaaa0002-0000-7000-8000-000000000002","cwd":"/work/api","source":{"subagent":"review"},"thread_source":"subagent"}}
+{"timestamp":"2026-09-20T19:10:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"review diff"}}

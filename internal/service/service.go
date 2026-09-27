@@ -64,6 +64,16 @@ func (s *Service) Discover(ctx context.Context) Snapshot {
 	if err != nil {
 		snap.Warnings = append(snap.Warnings, session.Warning{Adapter: "tmux", Message: err.Error()})
 	}
+	if cur := s.Tmux.Current(); cur != "" {
+		// the session aisle itself runs in is not a destination
+		kept := rts[:0]
+		for _, rt := range rts {
+			if rt.Name != cur {
+				kept = append(kept, rt)
+			}
+		}
+		rts = kept
+	}
 	snap.Sessions, snap.Unlinked = session.Link(snap.Sessions, rts)
 	session.SortByRecent(snap.Sessions)
 	sort.SliceStable(snap.Unlinked, func(i, j int) bool { return snap.Unlinked[i].Name < snap.Unlinked[j].Name })

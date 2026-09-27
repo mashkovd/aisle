@@ -86,6 +86,18 @@ func (c *Client) List() ([]session.Runtime, error) {
 	return rts, nil
 }
 
+// Current returns the tmux session this process runs in, if any.
+func (c *Client) Current() string {
+	if os.Getenv("TMUX") == "" || !c.Available() {
+		return ""
+	}
+	out, err := c.run("display-message", "-p", "#{session_name}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func (c *Client) Has(name string) bool {
 	_, err := c.run("has-session", "-t", "="+name)
 	return err == nil

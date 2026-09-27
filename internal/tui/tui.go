@@ -160,6 +160,7 @@ func Run(snap service.Snapshot, engines []Engine) (Action, error) {
 	m.list.Title = "aisle"
 	m.list.Styles.Title = titleStyle
 	m.list.SetStatusBarItemName("session", "sessions")
+	m.list.Filter = WordFilter
 	m.list.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{keys.resume, keys.newSess, keys.byProject} }
 	m.list.AdditionalFullHelpKeys = m.list.AdditionalShortHelpKeys
 	m.setItems()
@@ -204,6 +205,34 @@ func (m *model) setItems() {
 		items = append(items, sessionItem{s: s, code: codes[s.Key()], now: m.now})
 	}
 	m.list.SetItems(items)
+}
+
+// WordFilter keeps items containing every space-separated word of term
+// (case-insensitive) and preserves the recency order, unlike fuzzy ranking.
+func WordFilter(term string, targets []string) []list.Rank {
+	words := strings.Fields(strings.ToLower(term))
+	var ranks []list.Rank
+	for i, t := range targets {
+		lt := strings.ToLower(t)
+		var matched []int
+		ok := true
+		for _, w := range words {
+			j := strings.Index(lt, w)
+			if j < 0 {
+				ok = false
+				break
+			}
+			// highlight positions are rune indexes into the target
+			start := len([]rune(lt[:j]))
+			for k := 0; k < len([]rune(w)); k++ {
+				matched = append(matched, start+k)
+			}
+		}
+		if ok {
+			ranks = append(ranks, list.Rank{Index: i, MatchedIndexes: matched})
+		}
+	}
+	return ranks
 }
 
 func (m model) Init() tea.Cmd { return nil }

@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"write release notes"},"uuid":"u1","timestamp":"2026-09-02T09:00:00.000Z","cwd":"/work/demo","sessionId":"22222222-aaaa-4bbb-8ccc-000000000002"}
+{"type":"ai-title","aiTitle":"Release notes draft","sessionId":"22222222-aaaa-4bbb-8ccc-000000000002"}
+{"type":"custom-title","customTitle":"Release 1.4 notes","sessionId":"22222222-aaaa-4bbb-8ccc-000000000002"}
+{"type":"assistant","message":{"role":"assistant","content":[]},"uuid":"a1","timestamp":"2026-09-02T09:10:00.000Z","cwd":"/work/demo","sessionId":"22222222-aaaa-4bbb-8ccc-000000000002"}

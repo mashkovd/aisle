@@ -1,0 +1,7 @@
+{"type":"permission-mode","permissionMode":"default","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001"}
+{"type":"file-history-snapshot","messageId":"m0","snapshot":{}}
+{"type":"user","message":{"role":"user","content":"fix the flaky login test"},"uuid":"u1","timestamp":"2026-09-01T10:00:00.000Z","cwd":"/work/demo","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001","version":"2.1.280"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Looking."}]},"uuid":"a1","timestamp":"2026-09-01T10:00:05.000Z","cwd":"/work/demo","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001"}
+{"type":"ai-title","aiTitle":"Fix flaky login test","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001"}
+{"type":"last-prompt","lastPrompt":"run it again","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001"}
+{"type":"user","message":{"role":"user","content":"run it again"},"uuid":"u2","timestamp":"2026-09-01T11:30:00.000Z","cwd":"/work/demo","sessionId":"11111111-aaaa-4bbb-8ccc-000000000001"}

@@ -1,0 +1,55 @@
+version: 2
+
+project_name: aisle
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/aisle
+    binary: aisle
+    env:
+      - CGO_ENABLED=0 # modernc.org/sqlite is pure Go
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }} -X main.date={{ .Date }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]
+
+homebrew_casks:
+  - name: aisle
+    repository:
+      owner: mashkovd
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/mashkovd/aisle
+    description: Cross-agent session navigator for Claude Code, Codex, Gemini CLI and Antigravity
+    license: MIT
+    dependencies:
+      - formula: tmux
+    generate_completions_from_executable:
+      args: [completion]
+      shell_parameter_format: cobra
+      shells: [bash, zsh, fish]
+    # binaries are not notarized yet
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aisle"]
+          end
+    commit_msg_template: "aisle {{ .Tag }}"

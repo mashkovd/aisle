@@ -80,8 +80,12 @@ func main() {
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			if cmd.Name() == "version" || cmd.Name() == "completion" {
-				return nil
+			// commands that must work even with a broken config
+			for c := cmd; c != nil; c = c.Parent() {
+				switch c.Name() {
+				case "version", "completion", "help", cobra.ShellCompRequestCmd:
+					return nil
+				}
 			}
 			var err error
 			a, err = newApp()

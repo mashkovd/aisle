@@ -1,0 +1,9 @@
+version: "2"
+linters:
+  default: standard
+  enable: [misspell, unconvert, gocritic]
+  settings:
+    errcheck:
+      exclude-functions: [(*database/sql.DB).Close, (*database/sql.Rows).Close, (*os.File).Close, fmt.Fprintf, fmt.Fprintln, fmt.Fprint]
+formatters:
+  enable: [gofmt, goimports]

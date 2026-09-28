@@ -4,7 +4,7 @@
 
 You have months of conversations spread across Claude Code, Codex, Gemini CLI and Antigravity, each hidden in its own storage format and its own `--resume` flag. aisle reads all of them, shows one list newest-first, and drops you back into the right conversation, in the right directory, inside tmux.
 
-![aisle: list sessions from four agents, filter, resume a Gemini conversation in tmux](demo/aisle.gif)
+![aisle: list sessions from four agents, full-text search a word that only appears in a reply, resume that conversation in tmux](demo/aisle.gif)
 
 aisle is a thin layer, not an orchestrator: it **discovers → normalizes → shows → hands over to the agent's own CLI**. It never runs or drives an agent itself.
 

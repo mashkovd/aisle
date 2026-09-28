@@ -23,18 +23,23 @@ for p in ["api", "web", "infra", "mobile"]:
 
 # Claude Code
 claude = [
-    ("api", "Fix flaky login test in CI", ago(minutes=4)),
-    ("web", "Migrate checkout page to server components", ago(hours=3)),
-    ("infra", "Terraform: split staging and prod state", ago(days=2)),
-    ("api", "Rate limiter for public endpoints", ago(days=9)),
-    ("mobile", "Crash on cold start after deploy", ago(days=30)),
+    ("api", "Fix flaky login test in CI", ago(minutes=4),
+     "The retry test races on the session cookie: two requests refresh it at once. Serialising the refresh fixes it."),
+    ("web", "Migrate checkout page to server components", ago(hours=3),
+     "Moved the cart summary to a server component; the coupon form stays a client component."),
+    ("infra", "Terraform: split staging and prod state", ago(days=2),
+     "Created separate backends and moved the prod resources with terraform state mv."),
+    ("api", "Rate limiter for public endpoints", ago(days=9),
+     "Token bucket per API key, 100 requests per minute, with a Redis-backed counter."),
+    ("mobile", "Crash on cold start after deploy", ago(days=30),
+     "The crash comes from reading the auth cookie before the keystore is unlocked."),
 ]
-for proj, title, t in claude:
+for proj, title, t, reply in claude:
     sid = str(uuid.uuid4()); cwd = os.path.join(work, proj)
     slug = cwd.replace("/", "-")
     write(os.path.join(home, ".claude/projects", slug, sid + ".jsonl"), [
         {"type": "user", "message": {"role": "user", "content": title.lower()}, "timestamp": iso(t - timedelta(minutes=20)), "cwd": cwd, "sessionId": sid},
-        {"type": "assistant", "message": {"role": "assistant", "content": []}, "timestamp": iso(t), "cwd": cwd, "sessionId": sid},
+        {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": reply}]}, "timestamp": iso(t), "cwd": cwd, "sessionId": sid},
         {"type": "ai-title", "aiTitle": title, "sessionId": sid},
     ])
 

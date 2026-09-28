@@ -21,33 +21,32 @@ Enter
 Sleep 3s
 Show
 
-Type "aisle list"
+Type "aisle list -n 6"
 Sleep 400ms
 Enter
-Sleep 3.5s
+Sleep 3s
 
+# full-text search: "cookie" is only in the agents' replies, not in any title
 Type "aisle"
 Sleep 300ms
 Enter
+Sleep 2s
+Type "f"
+Sleep 500ms
+Type "cookie"
+Sleep 900ms
+Enter
 Sleep 2.5s
 Down
-Sleep 400ms
-Down
-Sleep 700ms
-Type "/"
-Sleep 300ms
-Type "deploy"
-Sleep 1.8s
-Enter
-Sleep 900ms
+Sleep 800ms
 Enter
 Sleep 3.5s
 
-# detach from tmux and look again: the conversation is now live
+# detach from tmux: the conversation is now live
 Ctrl+B
 Type "d"
 Sleep 1s
-Type "clear && aisle list --project infra"
+Type "clear && aisle list --project api"
 Enter
 Sleep 5s
 

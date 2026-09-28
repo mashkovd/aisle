@@ -5,6 +5,11 @@ project_name: aisle
 before:
   hooks:
     - go mod tidy
+    # completions ship in the archive: the cask must not execute the
+    # still-quarantined binary during install (Gatekeeper blocks it)
+    - rm -rf completions
+    - mkdir completions
+    - sh -c 'for sh in bash zsh fish; do go run ./cmd/aisle completion $sh > completions/aisle.$sh; done'
 
 builds:
   - main: ./cmd/aisle
@@ -19,7 +24,7 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [LICENSE, README.md]
+    files: [LICENSE, README.md, completions/*]
 
 checksum:
   name_template: checksums.txt
@@ -41,10 +46,10 @@ homebrew_casks:
     license: MIT
     dependencies:
       - formula: tmux
-    generate_completions_from_executable:
-      args: [completion]
-      shell_parameter_format: cobra
-      shells: [bash, zsh, fish]
+    completions:
+      bash: completions/aisle.bash
+      zsh: completions/aisle.zsh
+      fish: completions/aisle.fish
     # binaries are not notarized yet
     hooks:
       post:

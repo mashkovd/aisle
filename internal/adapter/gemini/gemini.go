@@ -148,7 +148,10 @@ func (a *Adapter) Discover(ctx context.Context) ([]session.Session, []session.Wa
 		if n, err := orphanedLogSessions(logs, chatIDs); err != nil {
 			warn(logs, err.Error())
 		} else if n > 0 {
-			warn(logs, fmt.Sprintf("%d session(s) exist only in the legacy prompt log and cannot be resumed", n))
+			warns = append(warns, session.Warning{
+				Adapter: name, Path: logs, Info: true,
+				Message: fmt.Sprintf("%d session(s) exist only in the legacy prompt log and cannot be resumed", n),
+			})
 		}
 	}
 	return out, warns

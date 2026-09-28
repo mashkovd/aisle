@@ -64,12 +64,26 @@ func (s Session) Partial() bool {
 	return false
 }
 
-// Warning is a non-fatal discovery problem. Adapters must emit one instead of
+// Warning is a non-fatal discovery finding. Adapters must emit one instead of
 // silently dropping history they could not read.
 type Warning struct {
 	Adapter string `json:"adapter"`
 	Path    string `json:"path,omitempty"`
 	Message string `json:"message"`
+	// Info marks an expected, non-actionable finding (e.g. legacy history
+	// that cannot be resumed). It is shown by doctor but not flagged.
+	Info bool `json:"info,omitempty"`
+}
+
+// CountActionable returns how many findings are real warnings.
+func CountActionable(ws []Warning) int {
+	n := 0
+	for _, w := range ws {
+		if !w.Info {
+			n++
+		}
+	}
+	return n
 }
 
 func (w Warning) String() string {

@@ -164,7 +164,7 @@ func Run(snap service.Snapshot, engines []Engine) (Action, error) {
 	m.list.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{keys.resume, keys.newSess, keys.byProject} }
 	m.list.AdditionalFullHelpKeys = m.list.AdditionalShortHelpKeys
 	m.setItems()
-	if n := len(snap.Warnings); n > 0 {
+	if n := session.CountActionable(snap.Warnings); n > 0 {
 		m.list.NewStatusMessage(warnStyle.Render(fmt.Sprintf("%d warning(s) — run `aisle doctor`", n)))
 	}
 

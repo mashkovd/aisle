@@ -78,3 +78,10 @@ func TestAgo(t *testing.T) {
 		}
 	}
 }
+
+func TestCountActionableIgnoresInfo(t *testing.T) {
+	ws := []Warning{{Message: "unsupported format"}, {Message: "legacy", Info: true}, {Message: "read error"}}
+	if n := CountActionable(ws); n != 2 {
+		t.Fatalf("got %d", n)
+	}
+}

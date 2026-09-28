@@ -23,7 +23,11 @@ func discover(t *testing.T, fixture string, roots ...string) (*Adapter, []string
 	}
 	var warns []string
 	for _, w := range ws {
-		warns = append(warns, w.Message)
+		level := "warn: "
+		if w.Info {
+			level = "info: "
+		}
+		warns = append(warns, level+w.Message)
 	}
 	return a, ids, summaries, warns
 }
@@ -53,14 +57,15 @@ func TestGolden_LegacyJSON(t *testing.T) {
 		t.Fatalf("got %q\nwant %q", g, want)
 	}
 	// the logs.json-only session is reported, not dropped silently
-	if len(warns) != 1 || !strings.Contains(warns[0], "1 session(s) exist only in the legacy prompt log") {
+	// …as an info note: it is expected and not actionable
+	if len(warns) != 1 || !strings.HasPrefix(warns[0], "info: 1 session(s) exist only in the legacy prompt log") {
 		t.Fatalf("warns=%v", warns)
 	}
 }
 
 func TestBrokenFileIsReported(t *testing.T) {
 	_, ids, _, warns := discover(t, "broken")
-	if len(ids) != 0 || len(warns) != 1 || !strings.Contains(warns[0], "unsupported format") {
+	if len(ids) != 0 || len(warns) != 1 || !strings.HasPrefix(warns[0], "warn: unsupported format") {
 		t.Fatalf("ids=%v warns=%v", ids, warns)
 	}
 }

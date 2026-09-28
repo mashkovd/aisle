@@ -201,6 +201,7 @@ func (a *app) list(ctx context.Context, o listOpts) error {
 		return enc.Encode(snap)
 	}
 	now := time.Now()
+	home, _ := os.UserHomeDir()
 	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(w, "ENGINE\tID\tPROJECT\tUPDATED\tLIVE\tSUMMARY")
 	for _, s := range ss {
@@ -208,9 +209,17 @@ func (a *app) list(ctx context.Context, o listOpts) error {
 		if s.Runtime != nil {
 			live = s.Runtime.Name
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", s.Engine, short(s.NativeID), s.Project, session.Ago(s.UpdatedAt, now), live, s.Summary)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", s.Engine, short(s.NativeID), tilde(s.Project, home), session.Ago(s.UpdatedAt, now), live, s.Summary)
 	}
 	return w.Flush()
+}
+
+// tilde abbreviates paths under home for display.
+func tilde(p, home string) string {
+	if home != "" && (p == home || strings.HasPrefix(p, home+"/")) {
+		return "~" + p[len(home):]
+	}
+	return p
 }
 
 func short(id string) string {

@@ -8,6 +8,12 @@ golangci-lint run
 goreleaser release --snapshot --clean --skip=publish
 ```
 
+## Demo GIF
+
+`vhs demo/aisle.tape` re-records `demo/aisle.gif`. It runs on synthetic history from
+`demo/seed.py` and stand-in agent binaries in `demo/bin/`, in a throwaway `$HOME`,
+so nothing from your machine ends up in the recording.
+
 ## Adding or updating an agent format
 
 Every adapter is tested against golden fixtures under `testdata/<engine>/<version>/`.

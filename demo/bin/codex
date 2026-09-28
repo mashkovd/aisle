@@ -1,0 +1,5 @@
+#!/bin/sh
+# stand-in for the real CLI in the demo recording
+printf '\033[1mcodex\033[0m  %s\n\n' "$*"
+printf '  Resumed conversation in %s\n  History loaded. Waiting for your next message.\n\n> ' "$(basename "$PWD")"
+exec sleep 3600

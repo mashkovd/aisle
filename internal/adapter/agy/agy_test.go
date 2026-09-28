@@ -68,3 +68,29 @@ func TestSchemaDriftIsReported(t *testing.T) {
 		t.Fatalf("got %v %v", ss, ws)
 	}
 }
+
+func TestExtractPromptsOnly(t *testing.T) {
+	home := fixture(t, "1.2")
+	b, err := os.ReadFile("../../../testdata/agy/1.2/history.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "antigravity-cli", "history.jsonl"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(adapter.Options{Home: home})
+	if a.Coverage() != adapter.CoveragePrompts {
+		t.Fatal("agy replies are not readable; coverage must say prompts only")
+	}
+	ts, _ := a.Transcripts(context.Background())
+	var got []string
+	for _, tr := range ts {
+		_, _ = a.Extract(context.Background(), tr, 0, func(m adapter.Message) {
+			got = append(got, m.SessionID[:8]+" "+m.Text)
+		})
+	}
+	want := "cccc0001 compare infra costs across regions\ncccc0002 describe the web app"
+	if g := strings.Join(got, "\n"); g != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", g, want)
+	}
+}

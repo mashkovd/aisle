@@ -4,6 +4,6 @@ linters:
   enable: [misspell, unconvert, gocritic]
   settings:
     errcheck:
-      exclude-functions: [(*database/sql.DB).Close, (*database/sql.Rows).Close, (*os.File).Close, fmt.Fprintf, fmt.Fprintln, fmt.Fprint]
+      exclude-functions: [(*database/sql.DB).Close, (*database/sql.Rows).Close, (*database/sql.Tx).Rollback, (*database/sql.Stmt).Close, (*github.com/mashkovd/aisle/internal/search.Index).Close, (*os.File).Close, fmt.Fprintf, fmt.Fprintln, fmt.Fprint]
 formatters:
   enable: [gofmt, goimports]

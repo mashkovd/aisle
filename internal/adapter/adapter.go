@@ -4,10 +4,15 @@
 package adapter
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/mashkovd/aisle/internal/session"
 )
@@ -71,4 +76,86 @@ func DetectBinary(ctx context.Context, name string, withVersion bool) (path, ver
 	}
 	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
 	return path, strings.TrimSpace(line)
+}
+
+// Transcript is one on-disk file holding conversation text.
+type Transcript struct {
+	Path      string
+	SessionID string // default session for messages that do not carry one
+	// Append marks an append-only file: indexing can resume from the last
+	// offset instead of re-reading the whole file.
+	Append bool
+}
+
+// Message is one piece of conversation text worth searching.
+type Message struct {
+	SessionID string
+	Role      string // user | assistant
+	Text      string
+	Time      time.Time
+}
+
+// Coverage describes how much conversation text an adapter can index.
+type Coverage string
+
+const (
+	CoverageFull    Coverage = "full"    // prompts and replies
+	CoveragePrompts Coverage = "prompts" // prompts only
+)
+
+// Searchable is implemented by adapters that can feed the full-text index.
+type Searchable interface {
+	Coverage() Coverage
+	Transcripts(ctx context.Context) ([]Transcript, []session.Warning)
+	// Extract emits messages from t starting at byte offset from (0 for
+	// non-append files) and returns the offset just past the last complete
+	// record it consumed.
+	Extract(ctx context.Context, t Transcript, from int64, emit func(Message)) (int64, error)
+}
+
+// maxMessageText caps what is indexed per message; pasted logs can be huge.
+const maxMessageText = 16 << 10
+
+// Clip trims text to the per-message index cap on a rune boundary.
+func Clip(text string) string {
+	if len(text) <= maxMessageText {
+		return text
+	}
+	cut := maxMessageText
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return text[:cut]
+}
+
+// ScanFrom calls fn for each complete line of path starting at offset from,
+// and returns the offset just past the last complete line. A trailing line
+// without a newline is left for the next call (it may still be written).
+func ScanFrom(ctx context.Context, path string, from int64, fn func(line []byte)) (int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return from, err
+	}
+	defer f.Close()
+	if _, err := f.Seek(from, io.SeekStart); err != nil {
+		return from, err
+	}
+	r := bufio.NewReaderSize(f, 1<<20)
+	off := from
+	for {
+		if ctx.Err() != nil {
+			return off, ctx.Err()
+		}
+		line, err := r.ReadBytes('\n')
+		if err == io.EOF {
+			return off, nil // partial or empty tail: not consumed
+		}
+		if err != nil {
+			return off, err
+		}
+		off += int64(len(line))
+		if l := bytes.TrimSpace(line); len(l) > 0 {
+			fn(l)
+		}
+	}
 }

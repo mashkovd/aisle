@@ -7,10 +7,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/mashkovd/aisle/internal/adapter"
 	"github.com/mashkovd/aisle/internal/runtime/tmux"
+	"github.com/mashkovd/aisle/internal/search"
 	"github.com/mashkovd/aisle/internal/session"
 )
 
@@ -117,3 +119,69 @@ func (s *Service) New(engine, dir string) error {
 
 // Attach hands the terminal to an existing runtime by name.
 func (s *Service) Attach(name string) error { return s.Tmux.Attach(name) }
+
+// Sources returns the enabled adapters that can feed the full-text index.
+func (s *Service) Sources() []search.Source {
+	var out []search.Source
+	for _, a := range s.Adapters {
+		if sa, ok := a.(adapter.Searchable); ok {
+			out = append(out, search.Source{Engine: a.Name(), A: sa})
+		}
+	}
+	return out
+}
+
+// Result is a search hit joined with the session it can resume.
+type Result struct {
+	Session session.Session `json:"session"`
+	Hit     search.Hit      `json:"hit"`
+}
+
+// Search matches hits to discovered sessions. Hits in conversations that
+// cannot be resumed (subagents, deleted histories) are counted, not listed.
+func (s *Service) Search(ctx context.Context, ix *search.Index, snap Snapshot, text, engine string) ([]Result, int, error) {
+	hits, err := ix.Search(ctx, text, engine)
+	if err != nil {
+		return nil, 0, err
+	}
+	byKey := make(map[string]session.Session, len(snap.Sessions))
+	for _, ss := range snap.Sessions {
+		byKey[ss.Key()] = ss
+	}
+	var (
+		out     []Result
+		orphans int
+		seen    = map[string]bool{}
+	)
+	for _, h := range hits {
+		ss, ok := byKey[h.Engine+":"+h.SessionID]
+		if !ok {
+			orphans++
+			continue
+		}
+		seen[ss.Key()] = true
+		out = append(out, Result{Session: ss, Hit: h})
+	}
+	// Titles are searchable too: they are the only text for conversations
+	// whose content aisle cannot read. Title-only matches rank after text hits.
+	words := strings.Fields(strings.ToLower(text))
+	for _, ss := range snap.Sessions {
+		if seen[ss.Key()] || (engine != "" && ss.Engine != engine) || !containsAll(strings.ToLower(ss.Summary), words) {
+			continue
+		}
+		out = append(out, Result{Session: ss, Hit: search.Hit{
+			Engine: ss.Engine, SessionID: ss.NativeID, Role: "title", Matches: 1,
+			Snippet: search.Highlight(ss.Summary, words), Time: ss.UpdatedAt,
+		}})
+	}
+	return out, orphans, nil
+}
+
+func containsAll(s string, words []string) bool {
+	for _, w := range words {
+		if !strings.Contains(s, w) {
+			return false
+		}
+	}
+	return len(words) > 0
+}

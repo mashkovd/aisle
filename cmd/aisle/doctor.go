@@ -12,6 +12,7 @@ import (
 
 	"github.com/mashkovd/aisle/internal/adapter"
 	"github.com/mashkovd/aisle/internal/config"
+	"github.com/mashkovd/aisle/internal/search"
 	"github.com/mashkovd/aisle/internal/session"
 )
 
@@ -30,11 +31,22 @@ type adapterReport struct {
 	Formats  map[string]int    `json:"formats"`
 	Warnings []string          `json:"warnings,omitempty"`
 	Notes    []string          `json:"notes,omitempty"`
+	Search   string            `json:"search"` // full | prompts | none
+}
+
+type indexReport struct {
+	Path     string `json:"path"`
+	Exists   bool   `json:"exists"`
+	Bytes    int64  `json:"bytes,omitempty"`
+	Files    int    `json:"files,omitempty"`
+	Messages int    `json:"messages,omitempty"`
+	Error    string `json:"error,omitempty"`
 }
 
 type doctorReport struct {
 	Version  string          `json:"version"`
 	Config   storageReport   `json:"config"`
+	Index    indexReport     `json:"index"`
 	Tmux     tmuxReport      `json:"tmux"`
 	Adapters []adapterReport `json:"adapters"`
 }
@@ -79,9 +91,27 @@ func doctorCmd(a **app) *cobra.Command {
 				rep.Tmux.Error = "not installed (brew install tmux)"
 			}
 
+			rep.Index = indexReport{Path: search.DefaultPath()}
+			if exists(rep.Index.Path) {
+				rep.Index.Exists = true
+				if ix, err := search.Open(rep.Index.Path); err != nil {
+					rep.Index.Error = err.Error()
+				} else {
+					if st, err := ix.Stats(ctx); err != nil {
+						rep.Index.Error = err.Error()
+					} else {
+						rep.Index.Bytes, rep.Index.Files, rep.Index.Messages = st.Bytes, st.Files, st.Messages
+					}
+					ix.Close()
+				}
+			}
+
 			snap := ap.svc.Discover(ctx)
 			for _, ad := range ap.svc.Adapters {
-				r := adapterReport{Name: ad.Name(), Detect: ad.Detect(ctx, true), Formats: map[string]int{}}
+				r := adapterReport{Name: ad.Name(), Detect: ad.Detect(ctx, true), Formats: map[string]int{}, Search: "none"}
+				if sa, ok := ad.(adapter.Searchable); ok {
+					r.Search = string(sa.Coverage())
+				}
 				for _, p := range r.Detect.Storage {
 					r.Storage = append(r.Storage, storageReport{Path: p, Exists: exists(p)})
 				}
@@ -141,6 +171,14 @@ func printDoctor(rep doctorReport, all []session.Warning) {
 	} else {
 		fmt.Printf("config  – %s (optional; using defaults)\n", rep.Config.Path)
 	}
+	switch {
+	case rep.Index.Error != "":
+		fmt.Printf("index   ✗ %s: %s\n", rep.Index.Path, rep.Index.Error)
+	case rep.Index.Exists:
+		fmt.Printf("index   ✓ %s — %d messages from %d files, %.1f MB\n", rep.Index.Path, rep.Index.Messages, rep.Index.Files, float64(rep.Index.Bytes)/1e6)
+	default:
+		fmt.Printf("index   – %s (built on first search)\n", rep.Index.Path)
+	}
 	if rep.Tmux.Binary != "" {
 		fmt.Printf("tmux    ✓ %s (%s) — %d sessions, %d started by aisle\n", rep.Tmux.Version, rep.Tmux.Binary, rep.Tmux.Sessions, rep.Tmux.Managed)
 	} else {
@@ -157,6 +195,14 @@ func printDoctor(rep doctorReport, all []session.Warning) {
 			fmt.Printf("        %s %s\n", mark(s.Exists), s.Path)
 		}
 		fmt.Printf("        %d sessions, %d live, %d partial\n", r.Sessions, r.Live, r.Partial)
+		switch r.Search {
+		case "full":
+			fmt.Println("        search: prompts and replies")
+		case "prompts":
+			fmt.Println("        search: prompts only (replies are stored in a format aisle cannot read)")
+		default:
+			fmt.Println("        search: not supported")
+		}
 		formats := make([]string, 0, len(r.Formats))
 		for f, n := range r.Formats {
 			formats = append(formats, fmt.Sprintf("%s×%d", f, n))

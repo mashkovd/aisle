@@ -152,7 +152,7 @@ func main() {
 		},
 	}
 
-	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a))
+	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a), searchCmd(&a), indexCmd(&a))
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		fmt.Fprintln(os.Stderr, "aisle:", err)
 		os.Exit(1)
@@ -234,11 +234,17 @@ func short(id string) string {
 
 func (a *app) interactive(ctx context.Context) error {
 	snap := a.svc.Discover(ctx)
+	fn, closeIx := a.lazySearchFunc(snap)
+	defer closeIx()
+	return a.runTUI(ctx, snap, tui.Options{Search: fn})
+}
+
+func (a *app) runTUI(ctx context.Context, snap service.Snapshot, opts tui.Options) error {
 	var engines []tui.Engine
 	for _, ad := range a.svc.Adapters {
 		engines = append(engines, tui.Engine{Name: ad.Name(), Letter: ad.Letter()})
 	}
-	act, err := tui.Run(snap, engines)
+	act, err := tui.Run(ctx, snap, engines, opts)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,5 @@
+agent claude native
+agent codex native
+agent gemini settings via=.gemini/settings.json
+agent agy native
+info gemini gemini-untrusted project/.gemini/settings.json unverified

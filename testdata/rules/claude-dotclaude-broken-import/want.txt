@@ -1,0 +1,7 @@
+agent claude missing
+agent codex native
+agent gemini missing
+agent agy native
+warning claude broken-import project/.claude/CLAUDE.md:5 fix=replace-import(@AGENTS.md→@../AGENTS.md)
+error claude claude-agents-md-not-included project/.claude/CLAUDE.md
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)

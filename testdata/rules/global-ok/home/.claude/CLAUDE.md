@@ -1,0 +1,3 @@
+# Mine
+
+@~/.codex/AGENTS.md

@@ -1,0 +1,5 @@
+agent claude missing
+agent codex missing
+agent gemini missing
+agent agy missing
+error all no-agents-md project/AGENTS.md

@@ -1,0 +1,4 @@
+agent claude import via=home/.claude/CLAUDE.md
+agent codex native
+agent gemini import via=home/.gemini/GEMINI.md
+agent agy import via=home/.gemini/GEMINI.md

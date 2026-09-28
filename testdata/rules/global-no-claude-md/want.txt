@@ -1,0 +1,7 @@
+agent claude missing
+agent codex native
+agent gemini missing
+agent agy missing
+error claude claude-agents-md-not-included home/.claude/CLAUDE.md fix=create(@~/.codex/AGENTS.md)
+warning gemini gemini-agents-md-not-loaded home/.gemini/GEMINI.md
+warning agy agy-agents-md-not-loaded home/.gemini/GEMINI.md

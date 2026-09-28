@@ -1,0 +1,6 @@
+agent claude missing
+agent codex native
+agent gemini missing
+agent agy native
+error claude claude-too-old project/CLAUDE.md fix=create(@AGENTS.md)
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)

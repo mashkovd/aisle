@@ -1,0 +1,6 @@
+agent claude native
+agent codex missing
+agent gemini missing
+agent agy native
+warning codex codex-override-shadows project/AGENTS.override.md
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)

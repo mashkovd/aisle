@@ -1,0 +1,5 @@
+{
+  "mcpServers": {"x": {"httpUrl": "https://example.test/mcp"}},
+  "contextFileName": "GEMINI.md",
+  "context": {"fileName": ["GEMINI.md", "AGENTS.md"]}
+}

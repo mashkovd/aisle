@@ -1,0 +1,6 @@
+agent claude missing
+agent codex native
+agent gemini import via=home/.gemini/GEMINI.md
+agent agy import via=home/.gemini/GEMINI.md
+error claude claude-agents-md-not-included home/.claude/CLAUDE.md fix=create(@~/.codex/AGENTS.md)
+error gemini gemini-legacy-key home/.gemini/settings.json fix=gemini-migrate

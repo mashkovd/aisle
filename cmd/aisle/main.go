@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -83,7 +84,7 @@ func main() {
 			// commands that must work even with a broken config
 			for c := cmd; c != nil; c = c.Parent() {
 				switch c.Name() {
-				case "version", "completion", "help", cobra.ShellCompRequestCmd:
+				case "version", "completion", "help", "rules", cobra.ShellCompRequestCmd:
 					return nil
 				}
 			}
@@ -152,8 +153,12 @@ func main() {
 		},
 	}
 
-	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a), searchCmd(&a), indexCmd(&a))
+	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a), searchCmd(&a), indexCmd(&a), rulesCmd())
 	if err := root.ExecuteContext(context.Background()); err != nil {
+		var code exitError
+		if errors.As(err, &code) {
+			os.Exit(int(code))
+		}
 		fmt.Fprintln(os.Stderr, "aisle:", err)
 		os.Exit(1)
 	}

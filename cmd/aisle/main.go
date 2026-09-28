@@ -160,16 +160,19 @@ func main() {
 }
 
 func (a *app) warn(ws []session.Warning) {
-	if len(ws) == 0 {
-		return
-	}
 	if debug {
 		for _, w := range ws {
-			fmt.Fprintln(os.Stderr, "warning:", w)
+			level := "warning"
+			if w.Info {
+				level = "info"
+			}
+			fmt.Fprintf(os.Stderr, "%s: %s\n", level, w)
 		}
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%d discovery warning(s); run with --debug or `aisle doctor`\n", len(ws))
+	if n := session.CountActionable(ws); n > 0 {
+		fmt.Fprintf(os.Stderr, "%d discovery warning(s); run with --debug or `aisle doctor`\n", n)
+	}
 }
 
 type listOpts struct {

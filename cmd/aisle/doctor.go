@@ -29,6 +29,7 @@ type adapterReport struct {
 	Partial  int               `json:"partial"`
 	Formats  map[string]int    `json:"formats"`
 	Warnings []string          `json:"warnings,omitempty"`
+	Notes    []string          `json:"notes,omitempty"`
 }
 
 type doctorReport struct {
@@ -100,8 +101,14 @@ func doctorCmd(a **app) *cobra.Command {
 					}
 				}
 				for _, w := range snap.Warnings {
-					if w.Adapter == ad.Name() {
-						r.Warnings = append(r.Warnings, strings.TrimPrefix(w.String(), ad.Name()+": "))
+					if w.Adapter != ad.Name() {
+						continue
+					}
+					msg := strings.TrimPrefix(w.String(), ad.Name()+": ")
+					if w.Info {
+						r.Notes = append(r.Notes, msg)
+					} else {
+						r.Warnings = append(r.Warnings, msg)
 					}
 				}
 				rep.Adapters = append(rep.Adapters, r)
@@ -129,7 +136,11 @@ func mark(ok bool) string {
 
 func printDoctor(rep doctorReport, all []session.Warning) {
 	fmt.Printf("aisle %s\n", rep.Version)
-	fmt.Printf("config  %s %s\n", mark(rep.Config.Exists), rep.Config.Path)
+	if rep.Config.Exists {
+		fmt.Printf("config  ✓ %s\n", rep.Config.Path)
+	} else {
+		fmt.Printf("config  – %s (optional; using defaults)\n", rep.Config.Path)
+	}
 	if rep.Tmux.Binary != "" {
 		fmt.Printf("tmux    ✓ %s (%s) — %d sessions, %d started by aisle\n", rep.Tmux.Version, rep.Tmux.Binary, rep.Tmux.Sessions, rep.Tmux.Managed)
 	} else {
@@ -156,6 +167,9 @@ func printDoctor(rep doctorReport, all []session.Warning) {
 		}
 		for _, w := range r.Warnings {
 			fmt.Printf("        ! %s\n", w)
+		}
+		for _, n := range r.Notes {
+			fmt.Printf("        i %s\n", n)
 		}
 	}
 	var other []string

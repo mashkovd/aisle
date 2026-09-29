@@ -24,6 +24,16 @@ synthetic: never commit real prompts, paths or credentials.
 An adapter must either read a file correctly or return a `Warning` with
 `unsupported format`; it must never drop part of the history silently.
 
+## Instruction-file rules
+
+`internal/rules` encodes how each agent finds its instruction files. Every
+scenario is a directory under `testdata/rules/<case>/` (`project/`, `home/`, an
+optional `claude-version` and a `global` marker) with the expected report in
+`want.txt`; `go test ./internal/rules -update` rewrites them — review the diff.
+When you change what aisle believes about an agent, confirm it against the real
+agent first (a codeword in a throwaway directory works well) or mark the finding
+`Unverified`.
+
 ## Full-text index
 
 Adapters feed the index through `adapter.Searchable`: `Transcripts` lists the

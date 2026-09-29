@@ -1,0 +1,6 @@
+agent claude native
+agent codex native
+agent gemini missing
+agent agy native
+error gemini gemini-legacy-key home/.gemini/settings.json fix=gemini-migrate
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)

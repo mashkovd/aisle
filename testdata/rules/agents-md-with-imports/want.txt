@@ -1,0 +1,7 @@
+agent claude native
+agent codex native
+agent gemini missing
+agent agy native
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)
+warning codex imports-not-expanded project/AGENTS.md:3
+warning agy imports-not-expanded project/AGENTS.md:3

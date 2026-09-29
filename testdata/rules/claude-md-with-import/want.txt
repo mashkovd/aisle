@@ -1,0 +1,5 @@
+agent claude import via=project/CLAUDE.md
+agent codex native
+agent gemini missing
+agent agy native
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json fix=gemini-names(GEMINI.md,AGENTS.md)

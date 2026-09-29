@@ -1,0 +1,3 @@
+# Claude notes
+
+@AGENTS.md

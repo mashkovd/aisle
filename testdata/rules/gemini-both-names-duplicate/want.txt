@@ -1,0 +1,5 @@
+agent claude native
+agent codex native
+agent gemini settings via=~/.gemini/settings.json
+agent agy native
+warning gemini gemini-duplicate project/GEMINI.md unverified

@@ -1,0 +1,7 @@
+agent claude native
+agent codex native
+agent gemini missing
+agent agy native
+warning gemini gemini-settings-unreadable project/.gemini/settings.json
+info gemini gemini-untrusted project/.gemini/settings.json unverified
+error gemini gemini-agents-md-not-loaded project/.gemini/settings.json

@@ -1,0 +1,4 @@
+agent claude native
+agent codex native
+agent gemini import via=project/GEMINI.md
+agent agy native

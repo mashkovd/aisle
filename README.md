@@ -96,7 +96,7 @@ Edits are conservative: sync adds an include line, rewrites one broken include, 
 
 ### Live status
 
-For every linked tmux session aisle shows what the agent is doing, refreshed every 1.5 s in the navigator and shown in `aisle list`:
+For every linked tmux session aisle shows what the agent is doing, in `aisle list` and in the navigator. The navigator keeps itself current: every 1.5 s it picks up tmux sessions that started or ended and updates their status, and every 15 s it reads all conversations again, so new ones and new titles appear without a restart. It never reorders the list while you filter or read search results.
 
 | Status | Meaning |
 |---|---|

@@ -279,7 +279,16 @@ func (a *app) interactive(ctx context.Context) error {
 }
 
 func (a *app) runTUI(ctx context.Context, snap service.Snapshot, opts tui.Options) error {
-	opts.Observe = a.svc.Observe
+	opts.Refresh = func(ctx context.Context, cur service.Snapshot, full bool) service.Snapshot {
+		var next service.Snapshot
+		if full {
+			next = a.svc.Discover(ctx)
+		} else {
+			next = a.svc.Relink(ctx, cur)
+		}
+		a.svc.Observe(&next)
+		return next
+	}
 	var engines []tui.Engine
 	for _, ad := range a.svc.Adapters {
 		engines = append(engines, tui.Engine{Name: ad.Name(), Letter: ad.Letter()})

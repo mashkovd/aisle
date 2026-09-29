@@ -61,8 +61,9 @@ var engineColor = map[string]lipgloss.Color{
 }
 
 var (
-	liveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#98C379")).Bold(true)
-	askStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#E06C75")).Bold(true)
+	liveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#98C379")).Bold(true)
+	// explicit fallbacks: termenv turns #E06C75 into near-black on 256- and 16-color terminals
+	askStyle   = lipgloss.NewStyle().Foreground(lipgloss.CompleteColor{TrueColor: "#E06C75", ANSI256: "204", ANSI: "9"}).Bold(true)
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#777777"})
 	warnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5C07B"))
 	matchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5C07B")).Bold(true)

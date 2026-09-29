@@ -32,6 +32,7 @@ aisle search vault token   # full-text search across every agent's conversations
 aisle resume 0d71ed   # resume by ID prefix (or engine:prefix)
 aisle new claude .    # start a fresh session in tmux
 aisle new codex --worktree   # …in its own git worktree, so parallel agents don't collide
+aisle worktree list   # those worktrees: changes, unmerged commits, sessions in them
 aisle doctor          # agents found, storage paths, formats, warnings
 aisle rules check     # does this project's AGENTS.md reach every agent?
 aisle watch           # desktop notification when an agent needs you or finishes

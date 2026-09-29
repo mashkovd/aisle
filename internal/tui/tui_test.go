@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/mashkovd/aisle/internal/service"
 	"github.com/mashkovd/aisle/internal/session"
@@ -53,5 +56,17 @@ func TestWaitingSessionsComeFirstAndCursorStays(t *testing.T) {
 	m.applyStatus(statusMsg{"tb": "idle"})
 	if first := m.list.Items()[0].(sessionItem).s.NativeID; first != "a" || m.list.Title != "aisle" {
 		t.Errorf("after answering: first %q, title %q", first, m.list.Title)
+	}
+}
+
+// "needs you" must stay visible where true color is unavailable, e.g. in
+// macOS Terminal.app; a plain #E06C75 downsamples to near-black there.
+func TestNeedsYouIsVisibleWithout24BitColor(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	for profile, want := range map[termenv.Profile]string{termenv.ANSI256: "38;5;204", termenv.ANSI: "91"} {
+		lipgloss.SetColorProfile(profile)
+		if got := askStyle.Render("x"); !strings.Contains(got, want) {
+			t.Errorf("profile %v: %q, want color %s", profile, got, want)
+		}
 	}
 }

@@ -5,7 +5,7 @@ Require tmux
 Set Shell "bash"
 Set FontSize 17
 Set Width 1400
-Set Height 640
+Set Height 680
 Set Padding 18
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 55ms
@@ -16,39 +16,48 @@ Type "export D=$(mktemp -d) && python3 demo/seed.py $D && go build -o $D/aisle .
 Enter
 Type "cp demo/tmux.conf $D/.tmux.conf"
 Enter
-Type "export HOME=$D PATH=$D:$PWD/demo/bin:$PATH TMUX_TMPDIR=$D PS1='\[\e[35m\]❯\[\e[0m\] ' && cd ~/work/api && clear"
+Type "export HOME=$D PATH=$D:$PWD/demo/bin:$PATH TMUX_TMPDIR=$D PS1='\[\e[35m\]❯\[\e[0m\] ' && cd ~/work/api && bash ~/live.sh && clear"
 Enter
 Sleep 3s
 Show
 
-Type "aisle list -n 6"
-Sleep 400ms
-Enter
-Sleep 3s
-
-# full-text search: "cookie" is only in the agents' replies, not in any title
+# a Claude session waits on a permission prompt, a Codex one is working
 Type "aisle"
 Sleep 300ms
 Enter
-Sleep 2s
+Sleep 4s
+
+# full-text search: "cookie" is only in the agents' replies
 Type "f"
-Sleep 500ms
+Sleep 400ms
 Type "cookie"
-Sleep 900ms
+Sleep 700ms
 Enter
 Sleep 2.5s
-Down
-Sleep 800ms
-Enter
-Sleep 3.5s
+Escape
+Sleep 1.2s
 
-# detach from tmux: the conversation is now live
+# jump into the session that needs you and answer it
+Enter
+Sleep 3s
+Type "1"
+Sleep 3s
 Ctrl+B
 Type "d"
 Sleep 1s
-Type "clear && aisle list --project api"
+
+# a new session in its own git worktree
+Type "clear && aisle new claude --worktree=fix-cookie"
+Sleep 400ms
 Enter
-Sleep 5s
+Sleep 3.5s
+Ctrl+B
+Type "d"
+Sleep 1s
+
+Type "clear && aisle list -n 4 && ls .worktrees && git branch"
+Enter
+Sleep 6s
 
 Hide
 Type "tmux kill-server; rm -rf $D"

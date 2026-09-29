@@ -21,7 +21,14 @@ func (l lines) Transcripts(context.Context) ([]adapter.Transcript, []session.War
 	files, _ := filepath.Glob(filepath.Join(l.dir, "*"))
 	var out []adapter.Transcript
 	for _, f := range files {
-		out = append(out, adapter.Transcript{Path: f, Append: strings.HasSuffix(f, ".append")})
+		if strings.HasSuffix(f, "-wal") {
+			continue // a companion, not a transcript
+		}
+		tr := adapter.Transcript{Path: f, Append: strings.HasSuffix(f, ".append")}
+		if strings.HasSuffix(f, ".db") {
+			tr.Companions = []string{f + "-wal"}
+		}
+		out = append(out, tr)
 	}
 	return out, nil
 }
@@ -157,6 +164,31 @@ func TestRewrittenAndDeletedFilesAreReplaced(t *testing.T) {
 	}
 	if hits, _ := ix.Search(ctx, "wording", ""); len(hits) != 0 {
 		t.Fatalf("deleted file still searchable")
+	}
+}
+
+// A SQLite database takes new rows in its write-ahead log first; a change
+// there must re-read the transcript although the database file is untouched.
+func TestCompanionChangesAreNoticed(t *testing.T) {
+	ix, data, src := setup(t)
+	ctx := context.Background()
+	db := filepath.Join(data, "c.db")
+	write(t, db, "s1\told\n")
+	if _, ws := ix.Update(ctx, src, nil); len(ws) > 0 {
+		t.Fatal(ws)
+	}
+	st, _ := os.Stat(db)
+	write(t, db, "s1\tnew\n") // same size…
+	if err := os.Chtimes(db, st.ModTime(), st.ModTime()); err != nil {
+		t.Fatal(err) // …and time: only the log below shows the change
+	}
+	write(t, db+"-wal", "log")
+	if _, ws := ix.Update(ctx, src, nil); len(ws) > 0 {
+		t.Fatal(ws)
+	}
+	hits, err := ix.Search(ctx, "new", "")
+	if err != nil || len(hits) != 1 {
+		t.Fatalf("hits %v err %v", hits, err)
 	}
 }
 

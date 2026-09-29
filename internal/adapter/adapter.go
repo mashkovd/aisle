@@ -86,6 +86,9 @@ type Transcript struct {
 	// Append marks an append-only file: indexing can resume from the last
 	// offset instead of re-reading the whole file.
 	Append bool
+	// Companions are files whose changes also change this transcript, such
+	// as a SQLite write-ahead log.
+	Companions []string
 }
 
 // Message is one piece of conversation text worth searching.

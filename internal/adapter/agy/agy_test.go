@@ -71,7 +71,9 @@ func TestSchemaDriftIsReported(t *testing.T) {
 	}
 }
 
-func TestExtractPromptsOnly(t *testing.T) {
+// history.jsonl carries the prompts of conversations whose database is not
+// on this machine.
+func TestExtractHistoryPrompts(t *testing.T) {
 	home := fixture(t, "1.2")
 	b, err := os.ReadFile("../../../testdata/agy/1.2/history.jsonl")
 	if err != nil {
@@ -81,8 +83,8 @@ func TestExtractPromptsOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := New(adapter.Options{Home: home})
-	if a.Coverage() != adapter.CoveragePrompts {
-		t.Fatal("agy replies are not readable; coverage must say prompts only")
+	if a.Coverage() != adapter.CoverageFull {
+		t.Fatal("coverage must be full: replies are read from conversation databases")
 	}
 	ts, _ := a.Transcripts(context.Background())
 	var got []string

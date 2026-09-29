@@ -199,7 +199,7 @@ func printDoctor(rep doctorReport, all []session.Warning) {
 		case "full":
 			fmt.Println("        search: prompts and replies")
 		case "prompts":
-			fmt.Println("        search: prompts only (replies are stored in a format aisle cannot read)")
+			fmt.Println("        search: prompts only")
 		default:
 			fmt.Println("        search: not supported")
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/mashkovd/aisle/internal/search"
 	"github.com/mashkovd/aisle/internal/session"
 	"github.com/mashkovd/aisle/internal/status"
+	"github.com/mashkovd/aisle/internal/worktree"
 )
 
 type Service struct {
@@ -252,8 +253,17 @@ func (s *Service) Resume(sess session.Session) error {
 	return s.Tmux.Launch(name, a.Resume(sess), sess.Engine, sess.NativeID)
 }
 
+// NewOptions shape a new session.
+type NewOptions struct {
+	// Worktree starts the agent in a new git worktree of dir's repository.
+	Worktree bool
+	Name     string // worktree name; empty picks one
+	// Created is told about the worktree before the terminal is handed over.
+	Created func(worktree.Worktree)
+}
+
 // New starts a fresh conversation of engine in dir.
-func (s *Service) New(engine, dir string) error {
+func (s *Service) New(engine, dir string, o NewOptions) error {
 	if !s.Tmux.Available() {
 		return tmux.ErrNotInstalled
 	}
@@ -261,12 +271,23 @@ func (s *Service) New(engine, dir string) error {
 	if !ok {
 		return fmt.Errorf("unknown or disabled engine %q", engine)
 	}
+	name := tmux.Name(engine, dir, "")
+	if o.Worktree {
+		wt, err := worktree.Create(dir, o.Name, engine)
+		if err != nil {
+			return err
+		}
+		if o.Created != nil {
+			o.Created(wt)
+		}
+		dir = wt.Path
+		name = tmux.Name(engine, wt.Repo, "") + "-" + strings.TrimPrefix(wt.Name, engine+"-")
+	}
 	cmd, id := a.New(dir), ""
 	if ia, ok := a.(adapter.IDAssigner); ok {
 		cmd, id = ia.NewWithID(dir)
 	}
-	name := s.Tmux.FreeName(tmux.Name(engine, dir, ""))
-	return s.Tmux.Launch(name, cmd, engine, id)
+	return s.Tmux.Launch(s.Tmux.FreeName(name), cmd, engine, id)
 }
 
 // Attach hands the terminal to an existing runtime by name.

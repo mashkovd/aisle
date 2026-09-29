@@ -32,10 +32,11 @@ const (
 )
 
 type Action struct {
-	Kind    ActionKind
-	Session session.Session
-	Runtime string // tmux session name for Attach
-	Engine  string // for New
+	Kind     ActionKind
+	Session  session.Session
+	Runtime  string // tmux session name for Attach
+	Engine   string // for New
+	Worktree bool   // New in a fresh git worktree
 }
 
 // SearchFunc runs a full-text query; it may update the index first.
@@ -189,7 +190,7 @@ type engineItem struct{ e Engine }
 
 func (i engineItem) Title() string { return tag(i.e.Name) }
 func (i engineItem) Description() string {
-	return "new " + i.e.Name + " session in the current directory"
+	return "new " + i.e.Name + " session in the current directory (w: in a new git worktree)"
 }
 func (i engineItem) FilterValue() string { return i.e.Name }
 
@@ -201,7 +202,7 @@ func project(p string) string {
 }
 
 type keymap struct {
-	resume, newSess, byProject, back, fullText key.Binding
+	resume, newSess, byProject, back, fullText, worktree key.Binding
 }
 
 var keys = keymap{
@@ -210,6 +211,7 @@ var keys = keymap{
 	byProject: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "group by project")),
 	back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	fullText:  key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "search text")),
+	worktree:  key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "in a new worktree")),
 }
 
 type mode int
@@ -292,7 +294,7 @@ func Run(ctx context.Context, snap service.Snapshot, engines []Engine, opts Opti
 	m.picker.Title = "new session"
 	m.picker.Styles.Title = titleStyle
 	m.picker.SetFilteringEnabled(false)
-	m.picker.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{keys.back} }
+	m.picker.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{keys.worktree, keys.back} }
 
 	out, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	if err != nil {
@@ -538,9 +540,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, keys.back):
 				m.picking = false
 				return m, nil
-			case key.Matches(msg, keys.resume):
+			case key.Matches(msg, keys.resume), key.Matches(msg, keys.worktree):
 				if it, ok := m.picker.SelectedItem().(engineItem); ok {
-					m.action = Action{Kind: New, Engine: it.e.Name}
+					m.action = Action{Kind: New, Engine: it.e.Name, Worktree: key.Matches(msg, keys.worktree)}
 					return m, tea.Quit
 				}
 			}

@@ -53,11 +53,14 @@ homebrew_casks:
       bash: completions/aisle.bash
       zsh: completions/aisle.zsh
       fish: completions/aisle.fish
-    # binaries are not notarized yet
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aisle"]
-          end
+    # binaries are not notarized yet. Homebrew deprecated the Ruby
+    # `postflight` block that `hooks.post.install` renders into declarative
+    # `postflight_steps`, which GoReleaser has no field for, hence custom_block.
+    # `{{staged_path}}` is a Homebrew token, escaped from GoReleaser's templating.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/aisle"]
+        end
+      end
     commit_msg_template: "aisle {{ .Tag }}"

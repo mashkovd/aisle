@@ -39,7 +39,10 @@ homebrew_casks:
     repository:
       owner: mashkovd
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      # an SSH deploy key with write access to the tap only; unlike a token it does not expire
+      git:
+        url: git@github.com:mashkovd/homebrew-tap.git
+        private_key: '{{ envOrDefault "HOMEBREW_TAP_DEPLOY_KEY" "" }}'
     directory: Casks
     homepage: https://github.com/mashkovd/aisle
     description: Cross-agent session navigator for Claude Code, Codex, Gemini CLI and Antigravity

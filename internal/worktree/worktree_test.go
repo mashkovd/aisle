@@ -1,6 +1,8 @@
 package worktree
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,5 +100,57 @@ func TestRespectsExistingIgnore(t *testing.T) {
 	ex, _ := os.ReadFile(filepath.Join(dir, ".git", "info", "exclude"))
 	if strings.Contains(string(ex), "/.worktrees/") {
 		t.Error("exclude written although .gitignore already covers it")
+	}
+}
+
+func TestListAndRemove(t *testing.T) {
+	dir := repo(t)
+	g := func(d string, args ...string) string { return run(t, d, append([]string{"git", "-C", d}, args...)...) }
+	clean, _ := Create(dir, "clean", "claude")
+	work, _ := Create(dir, "work", "claude")
+	dirty, _ := Create(dir, "dirty", "claude")
+	if err := os.WriteFile(filepath.Join(work.Root, "new.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g(work.Root, "add", ".")
+	g(work.Root, "-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "work")
+	if err := os.WriteFile(filepath.Join(dirty.Root, "sub", "f.txt"), []byte("changed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// a worktree that is not aisle's is not listed
+	g(dir, "worktree", "add", "-q", "-b", "other", filepath.Join(dir, "elsewhere"))
+	// nor is one aisle did not name, on a branch of its own
+	g(dir, "worktree", "add", "-q", "-b", "mine", filepath.Join(dir, ".worktrees", "mine"))
+
+	repoRoot, infos, err := List(filepath.Join(clean.Root, "sub"))
+	if err != nil || repoRoot != dir {
+		t.Fatalf("repo %q err %v", repoRoot, err)
+	}
+	var got []string
+	for _, i := range infos {
+		got = append(got, fmt.Sprintf("%s %s changes=%d ahead=%d", i.Name, i.Branch, i.Changes, i.Ahead))
+	}
+	want := "[clean aisle/clean changes=0 ahead=0 dirty aisle/dirty changes=1 ahead=0 mine mine changes=0 ahead=0 work aisle/work changes=0 ahead=1]"
+	if fmt.Sprint(got) != want {
+		t.Errorf("list:\n%v\nwant\n%v", got, want)
+	}
+
+	if _, err := Remove(dir, "dirty"); err == nil || !strings.Contains(err.Error(), "1 uncommitted change") || !exists(dirty.Root) {
+		t.Errorf("dirty: %v", err)
+	}
+	if _, err := Remove(dir, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown: %v", err)
+	}
+	r, err := Remove(dir, "clean")
+	if err != nil || !r.BranchDeleted || exists(clean.Root) || g(dir, "branch", "--list", "aisle/clean") != "" {
+		t.Errorf("clean: %+v %v", r, err)
+	}
+	r, err = Remove(dir, "work")
+	if err != nil || r.BranchDeleted || r.BranchKept != "1 commit(s) not merged" || g(dir, "branch", "--list", "aisle/work") == "" {
+		t.Errorf("work: %+v %v", r, err)
+	}
+	r, err = Remove(dir, "mine")
+	if err != nil || r.BranchDeleted || r.BranchKept != "not created by aisle" {
+		t.Errorf("mine: %+v %v", r, err)
 	}
 }

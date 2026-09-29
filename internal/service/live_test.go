@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/mashkovd/aisle/internal/runtime/tmux"
 	"github.com/mashkovd/aisle/internal/session"
 	"github.com/mashkovd/aisle/internal/status"
+	"github.com/mashkovd/aisle/internal/worktree"
 )
 
 func readers() []adapter.Adapter {
@@ -163,5 +165,46 @@ func TestLiveTmux(t *testing.T) {
 	}
 	if snap.Sessions[0].Runtime == nil || snap.Sessions[0].Runtime.Name != "asks" {
 		t.Error("Relink modified the snapshot it was given")
+	}
+}
+
+func TestRemoveWorktreeRefusesWhileAgentWorks(t *testing.T) {
+	c := tmux.NewClient()
+	if !c.Available() {
+		t.Skip("tmux not installed")
+	}
+	c.Socket = fmt.Sprintf("aisle-wt-%d", os.Getpid())
+	t.Cleanup(func() { _ = exec.Command(c.Bin, "-L", c.Socket, "kill-server").Run() })
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"commit", "-q", "--allow-empty", "-m", "i"}} {
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@example.com", "-c", "user.name=t"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+	}
+	wt, err := worktree.Create(dir, "busy", "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the agent works in a subdirectory of the worktree
+	sub := filepath.Join(wt.Root, "pkg")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Start("agent", adapter.Command{Argv: []string{"sleep", "30"}, Dir: sub}, "claude", ""); err != nil {
+		t.Fatal(err)
+	}
+	s := &Service{Tmux: c}
+	if _, err := s.RemoveWorktree(dir, "busy"); err == nil || !strings.Contains(err.Error(), "tmux session agent still works in busy") {
+		t.Fatalf("got %v", err)
+	}
+	if err := exec.Command(c.Bin, "-L", c.Socket, "kill-session", "-t", "=agent").Run(); err != nil {
+		t.Fatal(err)
+	}
+	if r, err := s.RemoveWorktree(dir, "busy"); err != nil || !r.BranchDeleted {
+		t.Fatalf("after the session ended: %+v %v", r, err)
 	}
 }

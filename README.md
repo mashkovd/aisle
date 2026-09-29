@@ -34,6 +34,7 @@ aisle new claude .    # start a fresh session in tmux
 aisle new codex --worktree   # …in its own git worktree, so parallel agents don't collide
 aisle doctor          # agents found, storage paths, formats, warnings
 aisle rules check     # does this project's AGENTS.md reach every agent?
+aisle watch           # desktop notification when an agent needs you or finishes
 ```
 
 In the navigator: `enter` resumes, `/` filters titles and projects, `f` searches the full text of your conversations, `n` starts a new session (`w` in the picker: in a new git worktree), `p` groups by project, `?` shows all keys. Shortcuts like `c3` or `x1` are shown for orientation; on the command line always use the stable session ID.
@@ -104,6 +105,8 @@ For every linked tmux session aisle shows what the agent is doing, in `aisle lis
 | ◐ working | a spinner is shown, or the screen changed since the last look |
 | ● idle | the agent finished and waits for your next prompt |
 | ○ exited | the agent quit; the pane is back at the shell |
+
+`aisle watch` turns these statuses into desktop notifications — Notification Center on macOS (with a sound when an agent needs you), `notify-send` on Linux — when a session starts waiting for you or finishes its work (`--on asking,done`, `--interval 2s`). It reports changes only, not the state found at start, and runs in the foreground: leave it in a tmux window. The text comes from your conversations and is passed to the notifier as arguments, never as part of a script.
 
 Status is read from the screen (`tmux capture-pane`), because tmux's activity timestamp cannot tell an agent that redraws while idle from one that works. It is a best effort: a prompt aisle does not recognise shows as idle.
 

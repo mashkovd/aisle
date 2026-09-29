@@ -1,5 +1,21 @@
-#!/bin/sh
-# stand-in for the real CLI in the demo recording
-printf '\033[1mclaude\033[0m  %s\n\n' "$*"
-printf '  Resumed conversation in %s\n  History loaded. Waiting for your next message.\n\n> ' "$(basename "$PWD")"
+#!/usr/bin/env bash
+# stand-in for the real CLI in the demo recording; DEMO_MODE=ask shows a permission prompt
+b=$'\e[1m' d=$'\e[2m' r=$'\e[0m'
+header() { clear; printf '%sclaude%s  %s%s%s\n\n' "$b" "$r" "$d" "$*" "$r"; }
+header "$@"
+if [[ $DEMO_MODE == ask ]]; then
+  printf '⏺ The retry test races on the session cookie. Running it in isolation.\n\n'
+  printf '⏺ Bash(npm test -- auth/login.spec.ts)\n\n'
+  printf ' Bash command\n   npm test -- auth/login.spec.ts\n\n'
+  printf ' Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don’t ask again for: npm test\n   3. No\n\n Esc to cancel\n'
+  read -rsn1 _
+  header "$@"
+  printf '⏺ Bash(npm test -- auth/login.spec.ts)\n  ⎿  42 passed (3.1s)\n\n'
+  printf '⏺ Serialising the cookie refresh fixed it: 20 runs in a row pass.\n\n> '
+else
+  what="New conversation"; [[ $* == *--resume* ]] && what="Resumed conversation"
+  where=$(basename "$PWD"); br=$(git branch --show-current 2>/dev/null)
+  [[ -n $br ]] && where+="  ${d}on $br$r"
+  printf '  %s in %s\n\n> ' "$what" "$where"
+fi
 exec sleep 3600

@@ -4,7 +4,7 @@
 Usage: demo/seed.py <home-dir>. Timestamps are relative to now so the list reads "5m ago".
 Nothing here comes from a real machine.
 """
-import json, os, sqlite3, sys, uuid
+import json, os, sqlite3, subprocess, sys, uuid
 from datetime import datetime, timedelta, timezone
 
 home = os.path.abspath(sys.argv[1])
@@ -34,8 +34,10 @@ claude = [
     ("mobile", "Crash on cold start after deploy", ago(days=30),
      "The crash comes from reading the auth cookie before the keystore is unlocked."),
 ]
+live = {}  # sessions the demo starts in tmux before recording: sid -> (engine, project, mode)
 for proj, title, t, reply in claude:
     sid = str(uuid.uuid4()); cwd = os.path.join(work, proj)
+    if title.startswith("Fix flaky login"): live[sid] = ("claude", proj, "ask")
     slug = cwd.replace("/", "-")
     write(os.path.join(home, ".claude/projects", slug, sid + ".jsonl"), [
         {"type": "user", "message": {"role": "user", "content": title.lower()}, "timestamp": iso(t - timedelta(minutes=20)), "cwd": cwd, "sessionId": sid},
@@ -47,6 +49,7 @@ for proj, title, t, reply in claude:
 index = []
 for proj, title, t in [("web", "Add dark mode toggle", ago(minutes=40)), ("api", "Audit auth middleware", ago(days=1)), ("infra", "Why is the deploy pipeline slow?", ago(days=5))]:
     sid = str(uuid.uuid4()); d = t.strftime("%Y/%m/%d")
+    if title.startswith("Add dark mode"): live[sid] = ("codex", proj, "work")
     path = os.path.join(home, ".codex/sessions", d, f"rollout-{t.strftime('%Y-%m-%dT%H-%M-%S')}-{sid}.jsonl")
     write(path, [
         {"timestamp": iso(t), "type": "session_meta", "payload": {"id": sid, "cwd": os.path.join(work, proj), "source": "cli", "thread_source": "user"}},
@@ -76,3 +79,21 @@ for proj, title, t in [("web", "Design system token cleanup", ago(hours=20)), ("
     db.execute("INSERT INTO conversation_summaries (conversation_id,title,preview,step_count,last_modified_time,workspace_uris,last_user_input_time) VALUES (?,?,?,?,?,?,?)",
                (str(uuid.uuid4()), title, title, 5, ts, json.dumps(["file://" + os.path.join(work, proj)]), ts))
 db.commit()
+
+# a git repository for `aisle new --worktree`
+api = os.path.join(work, "api")
+open(os.path.join(api, "README.md"), "w").write("# api\n")
+git = ["git", "-C", api, "-c", "user.name=demo", "-c", "user.email=demo@example.com"]
+subprocess.run(git + ["init", "-q", "-b", "main"], check=True)
+subprocess.run(git + ["add", "."], check=True)
+subprocess.run(git + ["commit", "-q", "-m", "init"], check=True)
+
+# live.sh starts the running sessions the way aisle labels its own
+resume = {"claude": "claude --resume {}", "codex": "codex resume {}"}
+with open(os.path.join(home, "live.sh"), "w") as f:
+    for sid, (engine, proj, mode) in live.items():
+        name = f"{engine}-{proj}-{sid[:8]}"
+        cmd = f"DEMO_MODE={mode} " + resume[engine].format(sid) + "; exec bash"
+        f.write(f"tmux new-session -d -s {name} -c {os.path.join(work, proj)} '{cmd}'\n")
+        f.write(f"tmux set-option -t ={name}: @aisle_engine {engine}\n")
+        f.write(f"tmux set-option -t ={name}: @aisle_id {sid}\n")

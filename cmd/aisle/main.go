@@ -165,7 +165,7 @@ func main() {
 		},
 	}
 
-	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a), searchCmd(&a), indexCmd(&a), rulesCmd())
+	root.AddCommand(list, resume, newCmd, ver, doctorCmd(&a), searchCmd(&a), indexCmd(&a), rulesCmd(), watchCmd(&a))
 	if err := root.ExecuteContext(context.Background()); err != nil {
 		var code exitError
 		if errors.As(err, &code) {

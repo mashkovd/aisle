@@ -26,7 +26,7 @@ import (
 
 // schemaVersion is bumped whenever extraction or schema changes; a mismatch
 // drops and rebuilds the index.
-const schemaVersion = 1
+const schemaVersion = 2
 
 // Snippet highlight markers; renderers replace them.
 const (
@@ -176,6 +176,12 @@ func (ix *Index) Update(ctx context.Context, sources []Source, progress func(don
 			current[t.Path] = true
 			st.Files++
 			size, mtime := info.Size(), info.ModTime().UnixNano()
+			for _, c := range t.Companions {
+				if ci, err := os.Stat(c); err == nil {
+					size += ci.Size()
+					mtime = max(mtime, ci.ModTime().UnixNano())
+				}
+			}
 			prev, seen := known[t.Path]
 			switch {
 			case seen && prev.size == size && prev.mtime == mtime:

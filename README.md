@@ -55,10 +55,7 @@ These are the agents' internal formats and they change between releases. aisle e
 
 `aisle search <words…>` (or `f` in the navigator) searches what you and the agents actually wrote — prompts and replies, not tool output or hidden reasoning — across all agents at once. Every word must match, case-insensitively and in any language; the last word also matches as a prefix. Results are grouped per conversation with the best-matching snippet, and `enter` resumes it.
 
-| Agent | What is searchable |
-|---|---|
-| Claude Code, Codex CLI, Gemini CLI | prompts and replies |
-| Antigravity CLI | prompts and titles (replies are stored in an undocumented binary format) |
+All four agents are searchable in full: prompts and replies. For Antigravity, which keeps each conversation as protobuf in its own SQLite database, aisle reads only the prompt and reply fields; if a future version changes them, `aisle doctor` reports the conversation as unreadable instead of indexing part of it.
 
 Search uses a local SQLite FTS5 index. The first search builds it (a few seconds for gigabytes of history); later searches only read what changed. The index lives in your user cache directory (`aisle doctor` shows the path), is readable only by you (0600), and **contains copies of your prompts** — anything you pasted into an agent, including secrets, is in it. It is only a cache: `aisle index --purge` deletes it, and the next search rebuilds it.
 

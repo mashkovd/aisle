@@ -48,6 +48,14 @@ func (a *Adapter) New(dir string) adapter.Command {
 	return adapter.Command{Argv: []string{"agy"}, Dir: dir}
 }
 
+func (a *Adapter) SessionFromArgv(argv []string) (string, bool) {
+	args, ok := adapter.AfterBinary(argv, "agy")
+	if !ok {
+		return "", false
+	}
+	return adapter.FlagValue(args, "--conversation")
+}
+
 // sqlite datetime text as agy writes it
 var timeLayouts = []string{"2006-01-02 15:04:05.999999999-07:00", time.RFC3339Nano, "2006-01-02 15:04:05"}
 

@@ -186,9 +186,21 @@ type listOpts struct {
 	limit           int
 }
 
+// observe fills runtime statuses; a pane counts as working when it changes,
+// so a one-shot command looks twice.
+func (a *app) observe(snap *service.Snapshot) {
+	if !snap.Live() {
+		return
+	}
+	a.svc.Observe(snap)
+	time.Sleep(500 * time.Millisecond)
+	a.svc.Observe(snap)
+}
+
 func (a *app) list(ctx context.Context, o listOpts) error {
 	snap := a.svc.Discover(ctx)
 	a.warn(snap.Warnings)
+	a.observe(&snap)
 	var ss []session.Session
 	for _, s := range snap.Sessions {
 		if o.engine != "" && s.Engine != o.engine {
@@ -216,6 +228,9 @@ func (a *app) list(ctx context.Context, o listOpts) error {
 		live := ""
 		if s.Runtime != nil {
 			live = s.Runtime.Name
+			if s.Runtime.Status != "" {
+				live += " (" + s.Runtime.Status + ")"
+			}
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", s.Engine, short(s.NativeID), tilde(s.Project, home), session.Ago(s.UpdatedAt, now), live, s.Summary)
 	}
@@ -245,6 +260,7 @@ func (a *app) interactive(ctx context.Context) error {
 }
 
 func (a *app) runTUI(ctx context.Context, snap service.Snapshot, opts tui.Options) error {
+	opts.Observe = a.svc.Observe
 	var engines []tui.Engine
 	for _, ad := range a.svc.Adapters {
 		engines = append(engines, tui.Engine{Name: ad.Name(), Letter: ad.Letter()})

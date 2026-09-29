@@ -11,14 +11,21 @@ import (
 	"sync"
 
 	"github.com/mashkovd/aisle/internal/adapter"
+	"github.com/mashkovd/aisle/internal/runtime/proc"
 	"github.com/mashkovd/aisle/internal/runtime/tmux"
 	"github.com/mashkovd/aisle/internal/search"
 	"github.com/mashkovd/aisle/internal/session"
+	"github.com/mashkovd/aisle/internal/status"
 )
 
 type Service struct {
 	Adapters []adapter.Adapter
 	Tmux     *tmux.Client
+	// Procs reads the process table; replaceable in tests.
+	Procs func(context.Context) (proc.Table, error)
+
+	mu      sync.Mutex
+	screens map[string]string // last capture per tmux session, for Observe
 }
 
 // Snapshot is everything aisle knows at one moment.
@@ -77,9 +84,150 @@ func (s *Service) Discover(ctx context.Context) Snapshot {
 		rts = kept
 	}
 	snap.Sessions, snap.Unlinked = session.Link(snap.Sessions, rts)
+	snap.Sessions, snap.Unlinked = s.infer(ctx, snap.Sessions, snap.Unlinked)
 	session.SortByRecent(snap.Sessions)
 	sort.SliceStable(snap.Unlinked, func(i, j int) bool { return snap.Unlinked[i].Name < snap.Unlinked[j].Name })
 	return snap
+}
+
+// infer links runtimes that carry no conversation label — tmux sessions
+// aisle did not start, and new ones whose conversation had no ID yet — when
+// a process in the pane runs an agent's resume command naming a discovered
+// conversation. The command line is the proof; nothing else is guessed.
+func (s *Service) infer(ctx context.Context, ss []session.Session, rts []session.Runtime) ([]session.Session, []session.Runtime) {
+	var readers []adapter.Adapter
+	for _, a := range s.Adapters {
+		if _, ok := a.(adapter.ArgvReader); ok {
+			readers = append(readers, a)
+		}
+	}
+	candidates := 0
+	for _, rt := range rts {
+		if rt.NativeID == "" && rt.PID > 0 {
+			candidates++
+		}
+	}
+	if candidates == 0 || len(readers) == 0 {
+		return ss, rts
+	}
+	table, err := s.procs()(ctx)
+	if err != nil {
+		return ss, rts
+	}
+	byKey := make(map[string]int, len(ss))
+	for i := range ss {
+		byKey[ss[i].Key()] = i
+	}
+	var rest []session.Runtime
+	for _, rt := range rts {
+		if rt.NativeID != "" || rt.PID <= 0 || !s.link(ss, byKey, rt, table.Tree(rt.PID), readers) {
+			rest = append(rest, rt)
+		}
+	}
+	return ss, rest
+}
+
+func (s *Service) link(ss []session.Session, byKey map[string]int, rt session.Runtime, procs []proc.Process, readers []adapter.Adapter) bool {
+	for _, p := range procs {
+		for _, a := range readers {
+			if rt.Engine != "" && rt.Engine != a.Name() {
+				continue // a labelled runtime only hosts its own engine
+			}
+			id, ok := a.(adapter.ArgvReader).SessionFromArgv(p.Argv)
+			if !ok {
+				continue
+			}
+			i, found := byKey[a.Name()+":"+id]
+			if !found || ss[i].Runtime != nil {
+				continue
+			}
+			r := rt
+			r.Inferred = rt.Engine == "" // an aisle-started runtime stays managed
+			r.Engine, r.NativeID = a.Name(), id
+			ss[i].Runtime = &r
+			ss[i].State = session.Live
+			return true
+		}
+	}
+	return false
+}
+
+// Observe sets the status of every runtime in snap that hosts a known
+// agent. A pane counts as working when its screen changed since the
+// previous call, so callers look twice, or keep calling.
+func (s *Service) Observe(snap *Snapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.screens == nil {
+		s.screens = map[string]string{}
+	}
+	var table *proc.Table
+	look := func(rt *session.Runtime) {
+		screen, err := s.Tmux.Capture(rt.Name)
+		if err != nil {
+			rt.Status = ""
+			return
+		}
+		cmd, _ := s.Tmux.Pane(rt.Name)
+		if cmd != "" && rt.PID > 0 {
+			// a shell in front is only "exited" when no agent process is left:
+			// agents started through a shell wrapper also show a shell
+			if table == nil {
+				t, err := s.procs()(context.Background())
+				table = &t
+				if err != nil {
+					table = nil
+				}
+			}
+			if table != nil && runsAgent(*table, rt.PID, rt.Engine) {
+				cmd = ""
+			}
+		}
+		rt.Status = string(status.Classify(screen, s.screens[rt.Name], cmd))
+		s.screens[rt.Name] = screen
+	}
+	for i := range snap.Sessions {
+		if rt := snap.Sessions[i].Runtime; rt != nil {
+			look(rt)
+		}
+	}
+	for i := range snap.Unlinked {
+		if snap.Unlinked[i].Engine != "" {
+			look(&snap.Unlinked[i])
+		}
+	}
+}
+
+func (s *Service) procs() func(context.Context) (proc.Table, error) {
+	if s.Procs != nil {
+		return s.Procs
+	}
+	return proc.Read
+}
+
+// runsAgent reports whether engine's binary runs in the pane rooted at pid.
+func runsAgent(t proc.Table, pid int, engine string) bool {
+	for _, p := range t.Tree(pid) {
+		if _, ok := adapter.AfterBinary(p.Argv, engine); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// Live reports whether snap has any runtime Observe would look at.
+func (snap Snapshot) Live() bool {
+	for _, ss := range snap.Sessions {
+		if ss.Runtime != nil {
+			return true
+		}
+	}
+	for _, rt := range snap.Unlinked {
+		if rt.Engine != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // Resume attaches to the session's runtime or launches one. On success it
@@ -113,8 +261,12 @@ func (s *Service) New(engine, dir string) error {
 	if !ok {
 		return fmt.Errorf("unknown or disabled engine %q", engine)
 	}
+	cmd, id := a.New(dir), ""
+	if ia, ok := a.(adapter.IDAssigner); ok {
+		cmd, id = ia.NewWithID(dir)
+	}
 	name := s.Tmux.FreeName(tmux.Name(engine, dir, ""))
-	return s.Tmux.Launch(name, a.New(dir), engine, "")
+	return s.Tmux.Launch(name, cmd, engine, id)
 }
 
 // Attach hands the terminal to an existing runtime by name.

@@ -11,6 +11,8 @@ package claude
 
 import (
 	"context"
+	"crypto/rand"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,6 +63,30 @@ func (a *Adapter) Resume(s session.Session) adapter.Command {
 
 func (a *Adapter) New(dir string) adapter.Command {
 	return adapter.Command{Argv: []string{"claude"}, Dir: dir}
+}
+
+// NewWithID starts the conversation under a fresh session ID, which Claude
+// Code accepts with --session-id.
+func (a *Adapter) NewWithID(dir string) (adapter.Command, string) {
+	id := newUUID()
+	return adapter.Command{Argv: []string{"claude", "--session-id", id}, Dir: dir}, id
+}
+
+func (a *Adapter) SessionFromArgv(argv []string) (string, bool) {
+	args, ok := adapter.AfterBinary(argv, "claude")
+	if !ok {
+		return "", false
+	}
+	return adapter.FlagValue(args, "--resume", "-r", "--session-id")
+}
+
+// newUUID returns a random (version 4) UUID.
+func newUUID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 type histEntry struct {

@@ -1,0 +1,40 @@
+╭─────────────────────────────────────────────────╮
+│ ✨ Update available! 0.155.1 -> 0.158.0         │
+│ Run brew upgrade --cask codex to update.        │
+│                                                 │
+│ See full release notes:                         │
+│ https://github.com/openai/codex/releases/latest │
+╰─────────────────────────────────────────────────╯
+
+╭──────────────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.155.1)                           │
+│                                                      │
+│ model:     gpt-6-astra low   /model to change        │
+│ directory: /home/user/project │
+╰──────────────────────────────────────────────────────╯
+
+  Tip: New Use /fast to enable our fastest inference with increased plan usage.
+
+⚠ 1 MCP startup issue (1 needs sign-in) · ctrl + t for details
+
+
+› Ask Codex to do anything
+
+  gpt-6-astra low · /home/user/project
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

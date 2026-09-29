@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -100,5 +101,28 @@ func TestHeadTailWindows(t *testing.T) {
 	s := ss[0]
 	if s.Project != "/big" || s.Summary != "Late title" || s.UpdatedAt.Month() != time.February {
 		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestArgvRoundTrip(t *testing.T) {
+	a := New(adapter.Options{})
+	s := session.Session{Engine: "claude", NativeID: "0d71ed00-1111-4222-8333-444455556666"}
+	if id, ok := a.SessionFromArgv(a.Resume(s).Argv); !ok || id != s.NativeID {
+		t.Errorf("resume argv: %q %v", id, ok)
+	}
+	cmd, id := a.NewWithID("/tmp")
+	if got, ok := a.SessionFromArgv(cmd.Argv); !ok || got != id {
+		t.Errorf("new argv: %q %v", got, ok)
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(id) {
+		t.Errorf("not a v4 UUID: %s", id)
+	}
+	for _, argv := range [][]string{{"claude"}, {"claude", "-c"}, {"claude", "--resume"}, {"claude", "--resume", "--verbose"}, {"clauded", "--resume", "x"}} {
+		if id, ok := a.SessionFromArgv(argv); ok {
+			t.Errorf("%v: got %q", argv, id)
+		}
+	}
+	if id, _ := a.SessionFromArgv([]string{"node", "/x/claude", "--resume=abc"}); id != "abc" {
+		t.Errorf("--resume=: %q", id)
 	}
 }

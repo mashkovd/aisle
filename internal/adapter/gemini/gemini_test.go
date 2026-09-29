@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mashkovd/aisle/internal/session"
+
 	"github.com/mashkovd/aisle/internal/adapter"
 )
 
@@ -77,5 +79,16 @@ func TestResumeUsesFullUUID(t *testing.T) {
 	c := a.Resume(ss[0])
 	if strings.Join(c.Argv, " ") != "gemini --resume bbbb0001-0000-4000-8000-000000000001" || c.Dir != "/work/demo" {
 		t.Fatalf("got %+v", c)
+	}
+}
+
+func TestArgvRoundTrip(t *testing.T) {
+	a := New(adapter.Options{}, nil)
+	s := session.Session{Engine: "gemini", NativeID: "abc-123"}
+	if id, ok := a.SessionFromArgv(a.Resume(s).Argv); !ok || id != s.NativeID {
+		t.Errorf("resume argv: %q %v", id, ok)
+	}
+	if id, ok := a.SessionFromArgv(a.New("/tmp").Argv); ok {
+		t.Errorf("new argv names a session: %q", id)
 	}
 }

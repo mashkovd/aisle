@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -32,18 +34,35 @@ func TestWordFilterKeepsOrderAndNeedsAllWords(t *testing.T) {
 	}
 }
 
-func TestWaitingSessionsComeFirstAndCursorStays(t *testing.T) {
+func snapWith(status string, extra ...session.Runtime) service.Snapshot {
 	now := time.Now()
-	snap := service.Snapshot{Sessions: []session.Session{
+	return service.Snapshot{Sessions: []session.Session{
 		{Engine: "claude", NativeID: "a", UpdatedAt: now, Runtime: &session.Runtime{Name: "ta", Status: "idle"}},
-		{Engine: "claude", NativeID: "b", UpdatedAt: now.Add(-time.Hour), Runtime: &session.Runtime{Name: "tb", Status: "working"}},
+		{Engine: "claude", NativeID: "b", UpdatedAt: now.Add(-time.Hour), Runtime: &session.Runtime{Name: "tb", Status: status}},
 		{Engine: "claude", NativeID: "c", UpdatedAt: now.Add(-2 * time.Hour)},
-	}}
-	m := model{snap: snap, letters: map[string]string{"claude": "c"}, now: now}
+	}, Unlinked: extra}
+}
+
+func newModel(snap service.Snapshot) model {
+	m := model{snap: snap, letters: map[string]string{"claude": "c"}, now: time.Now()}
 	m.list = list.New(nil, list.NewDefaultDelegate(), 80, 40)
+	m.list.Filter = WordFilter
 	m.setItems()
+	return m
+}
+
+func shownKeys(m model) string {
+	var ks []string
+	for _, it := range m.list.Items() {
+		ks = append(ks, itemKey(it))
+	}
+	return strings.Join(ks, " ")
+}
+
+func TestWaitingSessionsComeFirstAndCursorStays(t *testing.T) {
+	m := newModel(snapWith("working"))
 	m.list.Select(0) // "a"
-	m.applyStatus(statusMsg{"tb": "asking"})
+	m.applySnapshot(snapWith("asking"))
 	if first := m.list.Items()[0].(sessionItem).s.NativeID; first != "b" {
 		t.Errorf("first is %q, want the session that needs you", first)
 	}
@@ -53,9 +72,47 @@ func TestWaitingSessionsComeFirstAndCursorStays(t *testing.T) {
 	if m.list.Title != "aisle · 1 need you" {
 		t.Errorf("title %q", m.list.Title)
 	}
-	m.applyStatus(statusMsg{"tb": "idle"})
+	m.applySnapshot(snapWith("idle"))
 	if first := m.list.Items()[0].(sessionItem).s.NativeID; first != "a" || m.list.Title != "aisle" {
 		t.Errorf("after answering: first %q, title %q", first, m.list.Title)
+	}
+}
+
+func TestNewTmuxSessionsAppear(t *testing.T) {
+	m := newModel(snapWith("idle"))
+	m.list.Select(2) // "c"
+	m.applySnapshot(snapWith("idle", session.Runtime{Name: "new", Engine: "codex"}))
+	if got := shownKeys(m); got != "tmux:new claude:a claude:b claude:c" {
+		t.Errorf("items %s", got)
+	}
+	if sel := itemKey(m.list.SelectedItem()); sel != "claude:c" {
+		t.Errorf("cursor on %s", sel)
+	}
+	m.applySnapshot(snapWith("idle")) // the tmux session ended
+	if got := shownKeys(m); got != "claude:a claude:b claude:c" {
+		t.Errorf("items %s", got)
+	}
+}
+
+// Nothing moves under the user while they filter or read search results;
+// the data is used once they are back.
+func TestNoRedrawWhileFilteringOrInResults(t *testing.T) {
+	m := newModel(snapWith("idle"))
+	m.list.SetFilterText("claude")
+	m.applySnapshot(snapWith("asking", session.Runtime{Name: "new", Engine: "codex"}))
+	if strings.Contains(shownKeys(m), "tmux:new") {
+		t.Error("redrawn while filtering")
+	}
+	m.list.ResetFilter()
+
+	m.showResults("q", nil)
+	m.applySnapshot(snapWith("idle", session.Runtime{Name: "later", Engine: "codex"}))
+	if strings.Contains(shownKeys(m), "tmux:later") {
+		t.Error("results replaced by a refresh")
+	}
+	m.browse()
+	if !strings.Contains(shownKeys(m), "tmux:later") {
+		t.Errorf("going back does not show the new data: %s", shownKeys(m))
 	}
 }
 
@@ -68,5 +125,27 @@ func TestNeedsYouIsVisibleWithout24BitColor(t *testing.T) {
 		if got := askStyle.Render("x"); !strings.Contains(got, want) {
 			t.Errorf("profile %v: %q, want color %s", profile, got, want)
 		}
+	}
+}
+
+func TestTickRediscoversOnlyNowAndThen(t *testing.T) {
+	var fulls []bool
+	m := newModel(snapWith("idle"))
+	m.opts.Refresh = func(_ context.Context, cur service.Snapshot, full bool) service.Snapshot {
+		fulls = append(fulls, full)
+		return cur
+	}
+	m.lastFull = time.Now()
+	run := func() {
+		next, cmd := m.Update(tickMsg{})
+		m = next.(model)
+		cmd()
+	}
+	run()
+	m.lastFull = time.Now().Add(-rediscoverEvery)
+	run()
+	run()
+	if fmt.Sprint(fulls) != "[false true false]" {
+		t.Errorf("full rediscoveries: %v", fulls)
 	}
 }

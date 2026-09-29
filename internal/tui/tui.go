@@ -44,10 +44,13 @@ type SearchFunc func(ctx context.Context, query string) ([]service.Result, error
 
 // Options configure the navigator.
 type Options struct {
-	Search  SearchFunc              // nil disables full-text search
-	Observe func(*service.Snapshot) // refreshes runtime statuses; nil disables them
-	Query   string                  // start in results mode for this query…
-	Results []service.Result        // …with these results
+	Search SearchFunc // nil disables full-text search
+	// Refresh returns a current snapshot with runtime statuses: everything
+	// rediscovered when full, otherwise only the tmux sessions relinked.
+	// nil keeps the navigator static.
+	Refresh func(ctx context.Context, current service.Snapshot, full bool) service.Snapshot
+	Query   string           // start in results mode for this query…
+	Results []service.Result // …with these results
 }
 
 // Engine describes one enabled adapter for display.
@@ -223,13 +226,17 @@ const (
 	results       // showing full-text results
 )
 
-// observeEvery is how often live panes are looked at.
-const observeEvery = 1500 * time.Millisecond
+const (
+	// refreshEvery is how often tmux sessions and their panes are looked at.
+	refreshEvery = 1500 * time.Millisecond
+	// rediscoverEvery is how often all conversations are read again; a full
+	// discovery takes about a second on a few hundred conversations.
+	rediscoverEvery = 15 * time.Second
+)
 
 type tickMsg struct{}
 
-// statusMsg carries fresh statuses by runtime name.
-type statusMsg map[string]string
+type snapshotMsg struct{ snap service.Snapshot }
 
 type searchDoneMsg struct {
 	query   string
@@ -253,11 +260,13 @@ type model struct {
 	byProject bool
 	action    Action
 	now       time.Time
+	lastFull  time.Time // when the last full rediscovery was started
+	shown     string    // signature of what the list shows, to skip no-op redraws
 }
 
 // Run shows the navigator and returns what the user chose.
 func Run(ctx context.Context, snap service.Snapshot, engines []Engine, opts Options) (Action, error) {
-	m := model{ctx: ctx, opts: opts, snap: snap, engines: engines, letters: map[string]string{}, now: time.Now()}
+	m := model{ctx: ctx, opts: opts, snap: snap, engines: engines, letters: map[string]string{}, now: time.Now(), lastFull: time.Now()}
 	m.input = textinput.New()
 	m.input.Prompt = "search text: "
 	m.input.Placeholder = "words from any prompt or reply"
@@ -311,6 +320,7 @@ func (m *model) setItems() {
 	}
 	// conversations waiting on you come first
 	sort.SliceStable(ss, func(i, j int) bool { return needsYou(ss[i]) && !needsYou(ss[j]) })
+	m.shown = signature(m.snap)
 	m.list.Title = "aisle"
 	if n := m.waiting(); n > 0 {
 		m.list.Title = fmt.Sprintf("aisle · %d need you", n)
@@ -351,50 +361,22 @@ func (m *model) waiting() int {
 	return n
 }
 
-// observe looks at the live panes off the UI goroutine, on a copy of the
-// runtimes, and reports the statuses back as a message.
-func (m model) observe() tea.Cmd {
-	fn := m.opts.Observe
-	cp := service.Snapshot{Unlinked: append([]session.Runtime(nil), m.snap.Unlinked...)}
-	for _, s := range m.snap.Sessions {
-		if s.Runtime != nil {
-			rt := *s.Runtime
-			s.Runtime = &rt
-			cp.Sessions = append(cp.Sessions, s)
-		}
-	}
-	return func() tea.Msg {
-		fn(&cp)
-		out := statusMsg{}
-		for _, s := range cp.Sessions {
-			out[s.Runtime.Name] = s.Runtime.Status
-		}
-		for _, rt := range cp.Unlinked {
-			out[rt.Name] = rt.Status
-		}
-		return out
-	}
+// refresh builds a new snapshot off the UI goroutine. The current one is
+// only read, never modified.
+func (m model) refresh(full bool) tea.Cmd {
+	fn, ctx, cur := m.opts.Refresh, m.ctx, m.snap
+	return func() tea.Msg { return snapshotMsg{snap: fn(ctx, cur, full)} }
 }
 
-func tick() tea.Cmd { return tea.Tick(observeEvery, func(time.Time) tea.Msg { return tickMsg{} }) }
+func tick() tea.Cmd { return tea.Tick(refreshEvery, func(time.Time) tea.Msg { return tickMsg{} }) }
 
-// applyStatus stores fresh statuses and redraws, keeping the cursor on the
-// same entry even when the order changes.
-func (m *model) applyStatus(st statusMsg) {
-	changed := false
-	for i := range m.snap.Sessions {
-		if rt := m.snap.Sessions[i].Runtime; rt != nil {
-			if v, ok := st[rt.Name]; ok && v != rt.Status {
-				rt.Status, changed = v, true
-			}
-		}
-	}
-	for i := range m.snap.Unlinked {
-		if v, ok := st[m.snap.Unlinked[i].Name]; ok && v != m.snap.Unlinked[i].Status {
-			m.snap.Unlinked[i].Status, changed = v, true
-		}
-	}
-	if !changed || m.mode != browsing || m.list.FilterState() != list.Unfiltered {
+// applySnapshot takes a fresh snapshot. The list is redrawn only while
+// browsing without a filter, keeping the cursor on the same entry; in
+// search results or while filtering the new data waits until the user
+// goes back.
+func (m *model) applySnapshot(snap service.Snapshot) {
+	m.snap, m.now = snap, time.Now()
+	if m.mode != browsing || m.list.FilterState() != list.Unfiltered || signature(snap) == m.shown {
 		return
 	}
 	sel := itemKey(m.list.SelectedItem())
@@ -405,6 +387,22 @@ func (m *model) applyStatus(st statusMsg) {
 			break
 		}
 	}
+}
+
+// signature captures what the list shows of a snapshot.
+func signature(snap service.Snapshot) string {
+	var b strings.Builder
+	for _, s := range snap.Sessions {
+		b.WriteString(s.Key() + s.Summary + s.UpdatedAt.String())
+		if s.Runtime != nil {
+			b.WriteString(s.Runtime.Name + s.Runtime.Status)
+		}
+		b.WriteByte('\n')
+	}
+	for _, rt := range snap.Unlinked {
+		b.WriteString(rt.Name + rt.Status + "\n")
+	}
+	return b.String()
 }
 
 func itemKey(it list.Item) string {
@@ -485,10 +483,10 @@ func (m model) runSearch(query string) tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	if m.opts.Observe == nil || !m.snap.Live() {
+	if m.opts.Refresh == nil {
 		return nil
 	}
-	return m.observe()
+	return m.refresh(false)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -498,11 +496,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 		m.picker.SetSize(msg.Width-h, msg.Height-v)
 		return m, nil
-	case statusMsg:
-		m.applyStatus(msg)
+	case snapshotMsg:
+		m.applySnapshot(msg.snap)
 		return m, tick()
 	case tickMsg:
-		return m, m.observe()
+		full := time.Since(m.lastFull) >= rediscoverEvery
+		if full {
+			m.lastFull = time.Now()
+		}
+		return m, m.refresh(full)
 	case searchDoneMsg:
 		m.searching = false
 		if msg.err != nil {

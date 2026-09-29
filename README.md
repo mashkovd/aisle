@@ -92,7 +92,9 @@ Edits are conservative: sync adds an include line, rewrites one broken include, 
 
 ### Worktrees
 
-`aisle new <engine> --worktree` (or `--worktree=fix-login`) starts the agent in a new git worktree: `<repo>/.worktrees/<name>` on a new branch `aisle/<name>` cut from `HEAD`, in the same subdirectory you were in. Uncommitted changes stay in your checkout. The directory is excluded through `.git/info/exclude`, so the repository itself does not change. It works the same for all four agents. aisle never deletes a worktree: `git worktree remove .worktrees/<name>` does when you are done.
+`aisle new <engine> --worktree` (or `--worktree=fix-login`) starts the agent in a new git worktree: `<repo>/.worktrees/<name>` on a new branch `aisle/<name>` cut from `HEAD`, in the same subdirectory you were in. Uncommitted changes stay in your checkout. The directory is excluded through `.git/info/exclude`, so the repository itself does not change. It works the same for all four agents.
+
+`aisle worktree list` shows them with their branch, uncommitted changes, commits not yet merged into your main checkout, and the tmux sessions working in them. `aisle worktree rm <name>` removes one, and its `aisle/<name>` branch too when that is merged; it refuses while the worktree has uncommitted changes or an agent session still works in it, and keeps an unmerged branch.
 
 ### Live status
 

@@ -290,6 +290,36 @@ func (s *Service) New(engine, dir string, o NewOptions) error {
 	return s.Tmux.Launch(s.Tmux.FreeName(name), cmd, engine, id)
 }
 
+// RuntimesIn returns the tmux sessions whose pane works inside dir.
+func (s *Service) RuntimesIn(dir string) []session.Runtime {
+	rts, _ := s.Tmux.List()
+	var out []session.Runtime
+	for _, rt := range rts {
+		if rt.Path == dir || strings.HasPrefix(rt.Path, dir+"/") {
+			out = append(out, rt)
+		}
+	}
+	return out
+}
+
+// RemoveWorktree removes an aisle worktree unless an agent session still
+// runs in it; worktree.Remove refuses uncommitted changes.
+func (s *Service) RemoveWorktree(dir, name string) (worktree.Removed, error) {
+	_, infos, err := worktree.List(dir)
+	if err != nil {
+		return worktree.Removed{}, err
+	}
+	for _, wt := range infos {
+		if wt.Name != name {
+			continue
+		}
+		if rts := s.RuntimesIn(wt.Path); len(rts) > 0 {
+			return worktree.Removed{}, fmt.Errorf("tmux session %s still works in %s; exit it first", rts[0].Name, name)
+		}
+	}
+	return worktree.Remove(dir, name)
+}
+
 // Attach hands the terminal to an existing runtime by name.
 func (s *Service) Attach(name string) error { return s.Tmux.Attach(name) }
 

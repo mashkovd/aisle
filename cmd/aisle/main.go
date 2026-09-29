@@ -25,6 +25,7 @@ import (
 	"github.com/mashkovd/aisle/internal/service"
 	"github.com/mashkovd/aisle/internal/session"
 	"github.com/mashkovd/aisle/internal/tui"
+	"github.com/mashkovd/aisle/internal/worktree"
 )
 
 // set by GoReleaser
@@ -127,18 +128,29 @@ func main() {
 		},
 	}
 
+	var wtName string
 	newCmd := &cobra.Command{
 		Use:   "new <engine> [dir]",
 		Short: "Start a new session of an engine in tmux",
-		Args:  cobra.RangeArgs(1, 2),
+		Long: "Start a new session of an engine in tmux.\n\n" +
+			"With --worktree the agent starts in a new git worktree, <repo>/.worktrees/<name> on\n" +
+			"branch aisle/<name> from HEAD, so parallel sessions do not edit the same files.\n" +
+			"Uncommitted changes stay where they are. Remove it with `git worktree remove` when done.",
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, _ := os.Getwd()
 			if len(args) == 2 {
 				dir = args[1]
 			}
-			return a.svc.New(args[0], dir)
+			o := service.NewOptions{}
+			if cmd.Flags().Changed("worktree") {
+				o = a.worktreeOpts(wtName)
+			}
+			return a.svc.New(args[0], dir, o)
 		},
 	}
+	newCmd.Flags().StringVar(&wtName, "worktree", "", "start in a new git worktree (optionally named: --worktree=fix-login)")
+	newCmd.Flags().Lookup("worktree").NoOptDefVal = " "
 
 	ver := &cobra.Command{
 		Use:   "version",
@@ -162,6 +174,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "aisle:", err)
 		os.Exit(1)
 	}
+}
+
+func (a *app) worktreeOpts(name string) service.NewOptions {
+	return service.NewOptions{Worktree: true, Name: strings.TrimSpace(name), Created: func(wt worktree.Worktree) {
+		home, _ := os.UserHomeDir()
+		fmt.Fprintf(os.Stderr, "worktree %s on branch %s\n", tilde(wt.Root, home), wt.Branch)
+	}}
 }
 
 func (a *app) warn(ws []session.Warning) {
@@ -276,7 +295,11 @@ func (a *app) runTUI(ctx context.Context, snap service.Snapshot, opts tui.Option
 		return a.svc.Attach(act.Runtime)
 	case tui.New:
 		dir, _ := os.Getwd()
-		return a.svc.New(act.Engine, dir)
+		o := service.NewOptions{}
+		if act.Worktree {
+			o = a.worktreeOpts("")
+		}
+		return a.svc.New(act.Engine, dir, o)
 	}
 	return nil
 }

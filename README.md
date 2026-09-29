@@ -31,11 +31,12 @@ aisle list --json     # the same, machine-readable
 aisle search vault token   # full-text search across every agent's conversations
 aisle resume 0d71ed   # resume by ID prefix (or engine:prefix)
 aisle new claude .    # start a fresh session in tmux
+aisle new codex --worktree   # …in its own git worktree, so parallel agents don't collide
 aisle doctor          # agents found, storage paths, formats, warnings
 aisle rules check     # does this project's AGENTS.md reach every agent?
 ```
 
-In the navigator: `enter` resumes, `/` filters titles and projects, `f` searches the full text of your conversations, `n` starts a new session, `p` groups by project, `?` shows all keys. Shortcuts like `c3` or `x1` are shown for orientation; on the command line always use the stable session ID.
+In the navigator: `enter` resumes, `/` filters titles and projects, `f` searches the full text of your conversations, `n` starts a new session (`w` in the picker: in a new git worktree), `p` groups by project, `?` shows all keys. Shortcuts like `c3` or `x1` are shown for orientation; on the command line always use the stable session ID.
 
 Resuming a conversation that aisle already opened in tmux attaches to that tmux session instead of starting the agent twice.
 
@@ -91,6 +92,10 @@ Edits are conservative: sync adds an include line, rewrites one broken include, 
 - A session aisle starts is named `<engine>-<project>-<id8>` and labelled with `@aisle_engine` / `@aisle_id`, so it is linked back to its conversation. `aisle new claude` starts Claude Code with a session ID aisle picks (`--session-id`), so even a brand-new conversation is linked from its first message.
 - A tmux session aisle did not start is linked to a conversation only when a process in it runs that agent's own resume command naming it (for example `claude --resume <id>` or `codex resume <id>`). It is marked *not started by aisle*. Everything else is listed separately as *unmanaged*; aisle does not guess.
 - Inside tmux aisle switches the client; outside it attaches.
+
+### Worktrees
+
+`aisle new <engine> --worktree` (or `--worktree=fix-login`) starts the agent in a new git worktree: `<repo>/.worktrees/<name>` on a new branch `aisle/<name>` cut from `HEAD`, in the same subdirectory you were in. Uncommitted changes stay in your checkout. The directory is excluded through `.git/info/exclude`, so the repository itself does not change. It works the same for all four agents. aisle never deletes a worktree: `git worktree remove .worktrees/<name>` does when you are done.
 
 ### Live status
 

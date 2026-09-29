@@ -70,6 +70,24 @@ func (s *Service) Discover(ctx context.Context) Snapshot {
 		snap.Sessions = append(snap.Sessions, r.ss...)
 		snap.Warnings = append(snap.Warnings, r.ws...)
 	}
+	session.SortByRecent(snap.Sessions)
+	return s.link(ctx, snap)
+}
+
+// Relink refreshes only the runtimes of snap — tmux sessions that started
+// or ended since — keeping its conversations. It is cheap enough to run
+// every few seconds; snap itself is not modified.
+func (s *Service) Relink(ctx context.Context, snap Snapshot) Snapshot {
+	out := Snapshot{Warnings: snap.Warnings, Sessions: make([]session.Session, len(snap.Sessions))}
+	for i, ss := range snap.Sessions {
+		ss.Runtime, ss.State = nil, session.Historical
+		out.Sessions[i] = ss
+	}
+	return s.link(ctx, out)
+}
+
+// link attaches the current tmux sessions to snap's conversations.
+func (s *Service) link(ctx context.Context, snap Snapshot) Snapshot {
 	rts, err := s.Tmux.List()
 	if err != nil {
 		snap.Warnings = append(snap.Warnings, session.Warning{Adapter: "tmux", Message: err.Error()})
@@ -86,7 +104,6 @@ func (s *Service) Discover(ctx context.Context) Snapshot {
 	}
 	snap.Sessions, snap.Unlinked = session.Link(snap.Sessions, rts)
 	snap.Sessions, snap.Unlinked = s.infer(ctx, snap.Sessions, snap.Unlinked)
-	session.SortByRecent(snap.Sessions)
 	sort.SliceStable(snap.Unlinked, func(i, j int) bool { return snap.Unlinked[i].Name < snap.Unlinked[j].Name })
 	return snap
 }
@@ -121,14 +138,14 @@ func (s *Service) infer(ctx context.Context, ss []session.Session, rts []session
 	}
 	var rest []session.Runtime
 	for _, rt := range rts {
-		if rt.NativeID != "" || rt.PID <= 0 || !s.link(ss, byKey, rt, table.Tree(rt.PID), readers) {
+		if rt.NativeID != "" || rt.PID <= 0 || !s.linkByArgv(ss, byKey, rt, table.Tree(rt.PID), readers) {
 			rest = append(rest, rt)
 		}
 	}
 	return ss, rest
 }
 
-func (s *Service) link(ss []session.Session, byKey map[string]int, rt session.Runtime, procs []proc.Process, readers []adapter.Adapter) bool {
+func (s *Service) linkByArgv(ss []session.Session, byKey map[string]int, rt session.Runtime, procs []proc.Process, readers []adapter.Adapter) bool {
 	for _, p := range procs {
 		for _, a := range readers {
 			if rt.Engine != "" && rt.Engine != a.Name() {

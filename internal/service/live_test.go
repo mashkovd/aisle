@@ -149,6 +149,23 @@ func TestLiveTmux(t *testing.T) {
 			t.Errorf("%s: %q, want %q", name, got[name], w)
 		}
 	}
+
+	// Relink: a tmux session that ended loses its runtime, the others stay
+	// linked (by label and by argv), and the snapshot passed in is untouched
+	if err := exec.Command(c.Bin, "-L", c.Socket, "kill-session", "-t", "=asks").Run(); err != nil {
+		t.Fatal(err)
+	}
+	next := s.Relink(context.Background(), snap)
+	byID := map[string]*session.Runtime{}
+	for _, x := range next.Sessions {
+		byID[x.NativeID] = x.Runtime
+	}
+	if byID["id-ask"] != nil || byID["id-work"] == nil || byID["id-foreign"] == nil || !byID["id-foreign"].Inferred {
+		t.Errorf("after relink: ask=%v work=%v foreign=%v", byID["id-ask"], byID["id-work"], byID["id-foreign"])
+	}
+	if snap.Sessions[0].Runtime == nil || snap.Sessions[0].Runtime.Name != "asks" {
+		t.Error("Relink modified the snapshot it was given")
+	}
 }
 
 func TestRemoveWorktreeRefusesWhileAgentWorks(t *testing.T) {

@@ -88,9 +88,22 @@ Edits are conservative: sync adds an include line, rewrites one broken include, 
 
 ## tmux behaviour
 
-- A session aisle starts is named `<engine>-<project>-<id8>` and labelled with `@aisle_engine` / `@aisle_id`, so it is linked back to its conversation.
-- tmux sessions aisle did not start are listed separately as *unmanaged*. aisle does not guess which conversation they hold.
+- A session aisle starts is named `<engine>-<project>-<id8>` and labelled with `@aisle_engine` / `@aisle_id`, so it is linked back to its conversation. `aisle new claude` starts Claude Code with a session ID aisle picks (`--session-id`), so even a brand-new conversation is linked from its first message.
+- A tmux session aisle did not start is linked to a conversation only when a process in it runs that agent's own resume command naming it (for example `claude --resume <id>` or `codex resume <id>`). It is marked *not started by aisle*. Everything else is listed separately as *unmanaged*; aisle does not guess.
 - Inside tmux aisle switches the client; outside it attaches.
+
+### Live status
+
+For every linked tmux session aisle shows what the agent is doing, refreshed every 1.5 s in the navigator and shown in `aisle list`:
+
+| Status | Meaning |
+|---|---|
+| ⚑ needs you | a permission prompt, question or menu is open — these sessions are listed first |
+| ◐ working | a spinner is shown, or the screen changed since the last look |
+| ● idle | the agent finished and waits for your next prompt |
+| ○ exited | the agent quit; the pane is back at the shell |
+
+Status is read from the screen (`tmux capture-pane`), because tmux's activity timestamp cannot tell an agent that redraws while idle from one that works. It is a best effort: a prompt aisle does not recognise shows as idle.
 
 ## Configuration
 
@@ -108,7 +121,7 @@ summary_length = 80
 
 ## Roadmap
 
-Tracked in [milestones](https://github.com/mashkovd/aisle/milestones): next is **0.4**, live status of running sessions and git worktrees per session.
+Tracked in [milestones](https://github.com/mashkovd/aisle/milestones).
 
 ## License
 

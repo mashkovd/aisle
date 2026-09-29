@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mashkovd/aisle/internal/session"
+
 	"github.com/mashkovd/aisle/internal/adapter"
 )
 
@@ -43,5 +45,16 @@ func TestGolden_0_155(t *testing.T) {
 				t.Errorf("resume = %+v", c)
 			}
 		}
+	}
+}
+
+func TestArgvRoundTrip(t *testing.T) {
+	a := New(adapter.Options{})
+	s := session.Session{Engine: "codex", NativeID: "abc-123"}
+	if id, ok := a.SessionFromArgv(a.Resume(s).Argv); !ok || id != s.NativeID {
+		t.Errorf("resume argv: %q %v", id, ok)
+	}
+	if id, ok := a.SessionFromArgv(a.New("/tmp").Argv); ok {
+		t.Errorf("new argv names a session: %q", id)
 	}
 }

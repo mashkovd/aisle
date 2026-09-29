@@ -33,13 +33,19 @@ type Runtime struct {
 	Attached bool   `json:"attached"`
 	Path     string `json:"path,omitempty"`
 	Command  string `json:"command,omitempty"`
-	// Engine and NativeID are set only on runtimes aisle launched itself.
+	// Engine and NativeID are labels on runtimes aisle launched itself.
 	Engine   string `json:"engine,omitempty"`
 	NativeID string `json:"native_id,omitempty"`
+	PID      int    `json:"-"` // the pane's process
+	// Inferred marks a runtime aisle did not start, linked because a process
+	// in it runs the agent's resume command for this conversation.
+	Inferred bool `json:"inferred,omitempty"`
+	// Status is what the agent is doing: working, asking, idle or exited.
+	Status string `json:"status,omitempty"`
 }
 
 // Managed reports whether aisle launched this runtime.
-func (r Runtime) Managed() bool { return r.Engine != "" }
+func (r Runtime) Managed() bool { return r.Engine != "" && !r.Inferred }
 
 type Session struct {
 	Engine    string    `json:"engine"`

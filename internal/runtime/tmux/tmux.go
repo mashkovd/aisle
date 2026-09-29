@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -62,7 +63,7 @@ func (c *Client) List() ([]session.Runtime, error) {
 	}
 	format := strings.Join([]string{
 		"#{session_name}", "#{session_attached}", "#{pane_current_path}",
-		"#{pane_current_command}", "#{" + optEngine + "}", "#{" + optID + "}",
+		"#{pane_current_command}", "#{" + optEngine + "}", "#{" + optID + "}", "#{pane_pid}",
 	}, "\t")
 	out, err := c.run("list-sessions", "-F", format)
 	if err != nil {
@@ -75,12 +76,13 @@ func (c *Client) List() ([]session.Runtime, error) {
 	// trim only newlines: trailing tabs are empty label fields
 	for _, l := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		p := strings.Split(l, "\t")
-		if len(p) < 6 {
+		if len(p) < 7 {
 			continue
 		}
+		pid, _ := strconv.Atoi(p[6])
 		rts = append(rts, session.Runtime{
 			Kind: "tmux", Name: p[0], Attached: p[1] != "0", Path: p[2], Command: p[3],
-			Engine: p[4], NativeID: p[5],
+			Engine: p[4], NativeID: p[5], PID: pid,
 		})
 	}
 	return rts, nil
@@ -96,6 +98,19 @@ func (c *Client) Current() string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// Capture returns what the session's active pane shows.
+func (c *Client) Capture(name string) (string, error) {
+	out, err := c.run("capture-pane", "-p", "-t", "="+name+":")
+	return string(out), err
+}
+
+// Pane returns the session's pane_current_command, which tells whether the
+// agent is still running or the pane is back at the shell.
+func (c *Client) Pane(name string) (string, error) {
+	out, err := c.run("display-message", "-p", "-t", "="+name+":", "#{pane_current_command}")
+	return strings.TrimSpace(string(out)), err
 }
 
 func (c *Client) Has(name string) bool {

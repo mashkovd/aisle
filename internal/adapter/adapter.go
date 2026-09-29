@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -158,4 +159,44 @@ func ScanFrom(ctx context.Context, path string, from int64, fn func(line []byte)
 			fn(l)
 		}
 	}
+}
+
+// ArgvReader recognises the agent's own resume command in a process's
+// arguments, so a tmux session aisle did not start can be linked to its
+// conversation when — and only when — the command names it.
+type ArgvReader interface {
+	SessionFromArgv(argv []string) (id string, ok bool)
+}
+
+// IDAssigner starts a new conversation under an ID aisle picks, so the
+// tmux session can be labelled with it before the agent writes anything.
+type IDAssigner interface {
+	NewWithID(dir string) (cmd Command, id string)
+}
+
+// AfterBinary returns the arguments that follow the first element of argv
+// whose base name is bin — skipping wrappers such as `node` or `script`.
+func AfterBinary(argv []string, bin string) ([]string, bool) {
+	for i, a := range argv {
+		if filepath.Base(a) == bin {
+			return argv[i+1:], true
+		}
+	}
+	return nil, false
+}
+
+// FlagValue returns the value of the first of names in args, written as
+// `--name value` or `--name=value`.
+func FlagValue(args []string, names ...string) (string, bool) {
+	for i, a := range args {
+		for _, n := range names {
+			if a == n && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				return args[i+1], true
+			}
+			if v, ok := strings.CutPrefix(a, n+"="); ok && v != "" {
+				return v, true
+			}
+		}
+	}
+	return "", false
 }

@@ -65,6 +65,14 @@ func (a *Adapter) New(dir string) adapter.Command {
 	return adapter.Command{Argv: []string{"gemini"}, Dir: dir}
 }
 
+func (a *Adapter) SessionFromArgv(argv []string) (string, bool) {
+	args, ok := adapter.AfterBinary(argv, "gemini")
+	if !ok {
+		return "", false
+	}
+	return adapter.FlagValue(args, "--resume", "-r")
+}
+
 type message struct {
 	Type           string          `json:"type"`
 	Timestamp      string          `json:"timestamp"`

@@ -19,6 +19,7 @@ import (
 	"github.com/mashkovd/aisle/internal/search"
 	"github.com/mashkovd/aisle/internal/service"
 	"github.com/mashkovd/aisle/internal/session"
+	"github.com/mashkovd/aisle/internal/status"
 )
 
 type ActionKind int
@@ -42,9 +43,10 @@ type SearchFunc func(ctx context.Context, query string) ([]service.Result, error
 
 // Options configure the navigator.
 type Options struct {
-	Search  SearchFunc       // nil disables full-text search
-	Query   string           // start in results mode for this query…
-	Results []service.Result // …with these results
+	Search  SearchFunc              // nil disables full-text search
+	Observe func(*service.Snapshot) // refreshes runtime statuses; nil disables them
+	Query   string                  // start in results mode for this query…
+	Results []service.Result        // …with these results
 }
 
 // Engine describes one enabled adapter for display.
@@ -59,6 +61,7 @@ var engineColor = map[string]lipgloss.Color{
 
 var (
 	liveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#98C379")).Bold(true)
+	askStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#E06C75")).Bold(true)
 	dimStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#888888", Dark: "#777777"})
 	warnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5C07B"))
 	matchStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5C07B")).Bold(true)
@@ -88,7 +91,7 @@ func (i sessionItem) Title() string {
 func (i sessionItem) Description() string {
 	parts := []string{tag(i.s.Engine), project(i.s.Project), session.Ago(i.s.UpdatedAt, i.now)}
 	if i.s.Runtime != nil {
-		parts = append(parts, liveStyle.Render("● "+i.s.Runtime.Name))
+		parts = append(parts, runtimeBadge(*i.s.Runtime))
 	}
 	if i.s.Partial() {
 		parts = append(parts, warnStyle.Render("partial"))
@@ -135,6 +138,25 @@ func highlight(snippet string) string {
 	return b.String()
 }
 
+// runtimeBadge shows a live runtime with what its agent is doing.
+func runtimeBadge(rt session.Runtime) string {
+	name := rt.Name
+	if rt.Inferred {
+		name += " (not started by aisle)"
+	}
+	switch status.State(rt.Status) {
+	case status.Asking:
+		return askStyle.Render("⚑ needs you") + " " + liveStyle.Render(name)
+	case status.Working:
+		return liveStyle.Render("◐ working " + name)
+	case status.Idle:
+		return liveStyle.Render("● " + name)
+	case status.Exited:
+		return dimStyle.Render("○ exited " + name)
+	}
+	return liveStyle.Render("● " + name)
+}
+
 type runtimeItem struct {
 	rt   session.Runtime
 	code string
@@ -152,6 +174,9 @@ func (i runtimeItem) Description() string {
 	what := "unmanaged tmux"
 	if i.rt.Managed() {
 		what = "new " + i.rt.Engine + " session"
+		if i.rt.Status != "" {
+			what += " · " + runtimeBadge(i.rt)
+		}
 	}
 	return "     " + strings.Join([]string{tag("tmux"), project(i.rt.Path), i.rt.Command, what}, dimStyle.Render(" · "))
 }
@@ -194,6 +219,14 @@ const (
 	typing        // editing a full-text query
 	results       // showing full-text results
 )
+
+// observeEvery is how often live panes are looked at.
+const observeEvery = 1500 * time.Millisecond
+
+type tickMsg struct{}
+
+// statusMsg carries fresh statuses by runtime name.
+type statusMsg map[string]string
 
 type searchDoneMsg struct {
 	query   string
@@ -273,6 +306,12 @@ func (m *model) setItems() {
 	if m.byProject {
 		sort.SliceStable(ss, func(i, j int) bool { return project(ss[i].Project) < project(ss[j].Project) })
 	}
+	// conversations waiting on you come first
+	sort.SliceStable(ss, func(i, j int) bool { return needsYou(ss[i]) && !needsYou(ss[j]) })
+	m.list.Title = "aisle"
+	if n := m.waiting(); n > 0 {
+		m.list.Title = fmt.Sprintf("aisle · %d need you", n)
+	}
 	counters := map[string]int{}
 	codes := map[string]string{}
 	// codes follow recency, independent of the current ordering
@@ -288,6 +327,91 @@ func (m *model) setItems() {
 		items = append(items, sessionItem{s: s, code: codes[s.Key()], now: m.now})
 	}
 	m.list.SetItems(items)
+}
+
+func needsYou(s session.Session) bool {
+	return s.Runtime != nil && status.State(s.Runtime.Status).NeedsYou()
+}
+
+func (m *model) waiting() int {
+	n := 0
+	for _, s := range m.snap.Sessions {
+		if needsYou(s) {
+			n++
+		}
+	}
+	for _, rt := range m.snap.Unlinked {
+		if status.State(rt.Status).NeedsYou() {
+			n++
+		}
+	}
+	return n
+}
+
+// observe looks at the live panes off the UI goroutine, on a copy of the
+// runtimes, and reports the statuses back as a message.
+func (m model) observe() tea.Cmd {
+	fn := m.opts.Observe
+	cp := service.Snapshot{Unlinked: append([]session.Runtime(nil), m.snap.Unlinked...)}
+	for _, s := range m.snap.Sessions {
+		if s.Runtime != nil {
+			rt := *s.Runtime
+			s.Runtime = &rt
+			cp.Sessions = append(cp.Sessions, s)
+		}
+	}
+	return func() tea.Msg {
+		fn(&cp)
+		out := statusMsg{}
+		for _, s := range cp.Sessions {
+			out[s.Runtime.Name] = s.Runtime.Status
+		}
+		for _, rt := range cp.Unlinked {
+			out[rt.Name] = rt.Status
+		}
+		return out
+	}
+}
+
+func tick() tea.Cmd { return tea.Tick(observeEvery, func(time.Time) tea.Msg { return tickMsg{} }) }
+
+// applyStatus stores fresh statuses and redraws, keeping the cursor on the
+// same entry even when the order changes.
+func (m *model) applyStatus(st statusMsg) {
+	changed := false
+	for i := range m.snap.Sessions {
+		if rt := m.snap.Sessions[i].Runtime; rt != nil {
+			if v, ok := st[rt.Name]; ok && v != rt.Status {
+				rt.Status, changed = v, true
+			}
+		}
+	}
+	for i := range m.snap.Unlinked {
+		if v, ok := st[m.snap.Unlinked[i].Name]; ok && v != m.snap.Unlinked[i].Status {
+			m.snap.Unlinked[i].Status, changed = v, true
+		}
+	}
+	if !changed || m.mode != browsing || m.list.FilterState() != list.Unfiltered {
+		return
+	}
+	sel := itemKey(m.list.SelectedItem())
+	m.setItems()
+	for i, it := range m.list.Items() {
+		if itemKey(it) == sel {
+			m.list.Select(i)
+			break
+		}
+	}
+}
+
+func itemKey(it list.Item) string {
+	switch it := it.(type) {
+	case sessionItem:
+		return it.s.Key()
+	case runtimeItem:
+		return "tmux:" + it.rt.Name
+	}
+	return ""
 }
 
 // WordFilter keeps items containing every space-separated word of term
@@ -344,7 +468,6 @@ func (m *model) showResults(query string, rs []service.Result) {
 
 func (m *model) browse() {
 	m.mode, m.query = browsing, ""
-	m.list.Title = "aisle"
 	m.list.SetStatusBarItemName("session", "sessions")
 	m.setItems()
 	m.list.Select(0)
@@ -358,7 +481,12 @@ func (m model) runSearch(query string) tea.Cmd {
 	}
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m model) Init() tea.Cmd {
+	if m.opts.Observe == nil || !m.snap.Live() {
+		return nil
+	}
+	return m.observe()
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -367,6 +495,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(msg.Width-h, msg.Height-v)
 		m.picker.SetSize(msg.Width-h, msg.Height-v)
 		return m, nil
+	case statusMsg:
+		m.applyStatus(msg)
+		return m, tick()
+	case tickMsg:
+		return m, m.observe()
 	case searchDoneMsg:
 		m.searching = false
 		if msg.err != nil {

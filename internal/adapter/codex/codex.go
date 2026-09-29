@@ -57,6 +57,25 @@ func (a *Adapter) New(dir string) adapter.Command {
 	return adapter.Command{Argv: []string{"codex"}, Dir: dir}
 }
 
+// SessionFromArgv reads `codex [flags] resume <id>`.
+func (a *Adapter) SessionFromArgv(argv []string) (string, bool) {
+	args, ok := adapter.AfterBinary(argv, "codex")
+	if !ok {
+		return "", false
+	}
+	for i, x := range args {
+		if x == "resume" {
+			for _, y := range args[i+1:] {
+				if !strings.HasPrefix(y, "-") {
+					return y, true
+				}
+			}
+			return "", false
+		}
+	}
+	return "", false
+}
+
 type indexEntry struct {
 	name    string
 	updated time.Time

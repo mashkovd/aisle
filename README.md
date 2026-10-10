@@ -14,7 +14,7 @@ aisle is a thin layer, not an orchestrator: it **discovers → normalizes → sh
 brew install --cask mashkovd/tap/aisle
 ```
 
-or, with Go 1.25+:
+or, with Go 1.26.9+:
 
 ```sh
 go install github.com/mashkovd/aisle/cmd/aisle@latest
